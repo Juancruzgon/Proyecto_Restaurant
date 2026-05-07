@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
-from models import Usuario
+from models.usuario import Usuario
 from database import get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")

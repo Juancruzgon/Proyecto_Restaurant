@@ -1,6 +1,6 @@
 from escpos.printer import Network
 from datetime import datetime
-from models import Pedido, DetallePedido   
+from models.pedido import Pedido, DetallePedido   
 
 def imprimir_comanda(pedido: Pedido, detalles: list[DetallePedido], ip_impresora: str, puerto: int = 9100):
     try:

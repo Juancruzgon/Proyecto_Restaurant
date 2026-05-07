@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Depends, HTTPException
 from database import get_session
 from sqlmodel import Session, select
-from models import Usuario
+from models.usuario import Usuario
 from auth import verificar_password, crear_token
 from fastapi.security import OAuth2PasswordRequestForm 
 from websocket_manager import manager

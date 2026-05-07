@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from database import get_session
-from models import Usuario, Mesa
+from models.usuario import Usuario
+from models.mesa import Mesa
 from schemas.mesa import MesaCreate, MesaModify
-import crud
+from crud import mesa
 from auth import get_current_user
 from websocket_manager import manager
 import json
@@ -15,7 +16,7 @@ router = APIRouter(
 
 @router.get("/")
 def obtener_mesas(salon_id: int = None, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    return crud.obtener_mesas(session, salon_id)
+    return mesa.obtener_mesas(session, salon_id)
 
 @router.get("/{mesa_id}")
 def obtener_mesa(mesa_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
@@ -26,14 +27,14 @@ def obtener_mesa(mesa_id: int, session: Session = Depends(get_session), current_
 
 @router.post("/")
 async def crear_mesa(mesa: MesaCreate, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    resultado = crud.crear_mesa(mesa, session)
+    resultado = mesa.crear_mesa(mesa, session)
     await manager.broadcast(json.dumps({"evento": "nueva_mesa", "mesa_id": resultado.id}))
     return resultado
 
 @router.put("/{mesa_id}")
 def modificar_mesa(mesa_id: int, mesa: MesaModify, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    return crud.modificar_mesa(mesa_id, mesa, session)
+    return mesa.modificar_mesa(mesa_id, mesa, session)
 
 @router.delete("/{mesa_id}")
 def eliminar_mesa(mesa_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    return crud.eliminar_mesa(mesa_id, session)
+    return mesa.eliminar_mesa(mesa_id, session)

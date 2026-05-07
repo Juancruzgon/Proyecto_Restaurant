@@ -1,5 +1,6 @@
 from database import engine
-from models import Usuario, Rol
+from models.usuario import Usuario
+from models.rol import Rol
 from auth import hashear_password
 from sqlmodel import Session
 
