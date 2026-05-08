@@ -30,69 +30,63 @@ function MapaMesas() {
   }
 
   return (
-    <div>
-      <button onClick={() => navigate(-1)}>← Volver</button>
-      <button onClick={() => navigate('/dashboard')}>Inicio</button>
-      <h1>Mapa de Mesas</h1>
-      <div>
-        {mesas.map(mesa => (
-          <div
-            key={mesa.id}
-            onMouseEnter={() => setMesaHover(mesa.id)}
-            onMouseLeave={() => setMesaHover(null)}
-            onClick={() => {
-              if (modoNuevo && mesa.estado_id !== 1) {
-                alert('Mesa ocupada - elegí otra mesa')
-              } else {
-                navigate(`/pedido/${mesa.id}`)
-              }
-            }}
-            style={{
-              background: mesa.estado_id === 1 ? 'green' : 'red',
-              color: 'white',
-              padding: '20px',
-              margin: '10px',
-              display: 'inline-block',
-              cursor: 'pointer',
-              position: 'relative'
-            }}
-          >
-            Mesa {mesa.nro_id}
-            {mesaHover === mesa.id && rolId === '1' && (
-              <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '4px' }}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate(`/mesas/${mesa.id}/editar`) }}
-                  style={{ fontSize: '10px', padding: '2px 6px' }}
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={(e) => handleEliminarMesa(e, mesa.id)}
-                  style={{ fontSize: '10px', padding: '2px 6px', background: 'darkred' }}
-                >
-                  Eliminar
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+    <div className="min-h-screen bg-gray-100">
+      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold !text-orange-500">Mapa de Mesas</h1>
+        <div className="flex gap-2">
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
+          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
+        </div>
+      </div>
 
-        {rolId === '1' && (
-          <div
-            onClick={() => navigate('/mesas/nueva')}
-            style={{
-              background: '#ccc',
-              color: '#333',
-              padding: '20px',
-              margin: '10px',
-              display: 'inline-block',
-              cursor: 'pointer',
-              border: '2px dashed #999'
-            }}
-          >
-            + Nueva mesa
-          </div>
-        )}
+      <div className="max-w-4xl mx-auto mt-8 px-4">
+        <div className="flex flex-wrap gap-4">
+          {mesas.map(mesa => (
+            <div
+              key={mesa.id}
+              onMouseEnter={() => setMesaHover(mesa.id)}
+              onMouseLeave={() => setMesaHover(null)}
+              onClick={() => {
+                if (modoNuevo && mesa.estado_id !== 1) {
+                  alert('Mesa ocupada - elegí otra mesa')
+                } else {
+                  navigate(`/pedido/${mesa.id}`)
+                }
+              }}
+              className={`relative w-24 h-24 rounded-xl flex flex-col items-center justify-center cursor-pointer transition shadow-sm ${mesa.estado_id === 1 ? 'bg-green-100 border-2 border-green-400 text-green-800' : 'bg-red-100 border-2 border-red-400 text-red-800'}`}
+            >
+              <span className="font-bold text-sm">Mesa</span>
+              <span className="font-bold text-xl">{mesa.nro_id}</span>
+
+              {mesaHover === mesa.id && rolId === '1' && (
+                <div className="absolute -top-2 -right-2 flex gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate(`/mesas/${mesa.id}/editar`) }}
+                    className="bg-blue-500 text-white text-xs px-2 py-1 rounded-lg hover:bg-blue-600"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={(e) => handleEliminarMesa(e, mesa.id)}
+                    className="bg-red-500 text-white text-xs px-2 py-1 rounded-lg hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {rolId === '1' && (
+            <div
+              onClick={() => navigate('/mesas/nueva')}
+              className="w-24 h-24 rounded-xl flex flex-col items-center justify-center cursor-pointer border-2 border-dashed border-gray-300 text-gray-400 hover:border-orange-400 hover:text-orange-400 transition"
+            >
+              <span className="text-2xl">+</span>
+              <span className="text-xs">Nueva mesa</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

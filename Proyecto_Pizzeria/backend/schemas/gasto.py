@@ -6,7 +6,7 @@ class GastoCreate(pydantic.BaseModel):
     nombre: str
     descripcion: str
     monto: Decimal
-    categoria_id: int
+    categoria_id: int 
 
 class GastoModify(pydantic.BaseModel):
     nombre: str
