@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCategorias, crearCategoria } from '../services/api'
+import { getCategoriasInsumo, crearCategoriaInsumo, crearCategoria } from '../services/api'
 
-function Productos() {
+function Insumos() {
   const [categorias, setCategorias] = useState([])
   const [nombreCategoria, setNombreCategoria] = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
-    getCategorias().then(data => setCategorias(data))
+    getCategoriasInsumo().then(data => setCategorias(data))
   }, [])
 
   const handleCrearCategoria = () => {
-    crearCategoria(nombreCategoria, '').then(() => {
-      getCategorias().then(data => setCategorias(data))
+    crearCategoriaInsumo({ nombre: nombreCategoria }).then(() => {
+      getCategoriasInsumo().then(data => setCategorias(data))
       setNombreCategoria('')
       setMostrarFormulario(false)
     })
@@ -24,12 +24,12 @@ function Productos() {
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
       <button onClick={() => navigate('/dashboard')}>Inicio</button>
-      <h1>Categorias</h1>
+      <h1>Insumos</h1>
 
       {categorias.map(c => (
         <div key={c.id}>
           <span>{c.nombre}</span>
-          <button onClick={() => navigate(`/productos/${c.id}`)}>Ver productos</button>
+          <button onClick={() => navigate(`/insumos/${c.id}`)}>Ver →</button>
         </div>
       ))}
 
@@ -50,4 +50,4 @@ function Productos() {
   )
 }
 
-export default Productos
+export default Insumos

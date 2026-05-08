@@ -155,3 +155,92 @@ export const crearMesa = async (data) => {
   const response = await api.post('/mesas/', data)
   return response.data
 }
+export const getUsuarios = async () => {
+  const response = await api.get('/usuarios/')
+  return response.data
+}
+
+export const getRoles = async () => {
+  const response = await api.get('/roles/')
+  return response.data
+}
+
+export const crearUsuario = async (data) => {
+  const response = await api.post('/usuarios/', data)
+  return response.data
+}
+export const getUsuarioPorId = async (usuarioId) => {
+  const response = await api.get(`/usuarios/${usuarioId}`)
+  return response.data
+}
+
+export const modificarUsuario = async (usuarioId, data) => {
+  const response = await api.put(`/usuarios/${usuarioId}`, data)
+  return response.data
+}
+
+export const desactivarUsuario = async (usuarioId) => {
+  const response = await api.delete(`/usuarios/${usuarioId}`)
+  return response.data
+}
+
+export const getCategoriasInsumo = async (parentId = null) => {
+  const url = parentId ? `/categorias-insumos/?parent_id=${parentId}` : '/categorias-insumos/'
+  const response = await api.get(url)
+  return response.data
+}
+
+export const crearCategoriaInsumo = async (data) => {
+  const response = await api.post('/categorias-insumos/', data)
+  return response.data
+}
+
+export const agregarCategoriaInsumo = async (data) => {
+  const response = await api.post('/categorias-insumos/', data)
+  return response.data
+}
+
+export const modificarInsumo = async (insumoId, data) => {
+  const response = await api.put(`/insumos/${insumoId}`, data)
+  return response.data
+}
+
+export const eliminarInsumo = async (insumoId) => {
+  const response = await api.delete(`/insumos/${insumoId}`)
+  return response.data
+}
+
+export const getInsumo = async (categoriaId = null) => {
+  const url = categoriaId ? `/insumos/?categoria_id=${categoriaId}` : '/insumos/'
+  const response = await api.get(url)
+  return response.data
+}
+
+export const agregarCompra = async (insumoId, cantidad) => {
+  const response = await api.post(`/insumos/${insumoId}/compra?cantidad=${cantidad}`)
+  return response.data
+}
+export const crearInsumo = async (data) => {
+  const response = await api.post('/insumos/', data)
+  return response.data
+}
+export const getCategoriasGasto = async () => {
+  const response = await api.get('/categorias-gastos/')
+  return response.data
+}
+
+export const getGastos = async (categoriaId = null) => {
+  const url = categoriaId ? `/gastos/?categoria_id=${categoriaId}` : '/gastos/'
+  const response = await api.get(url)
+  return response.data
+}
+
+export const crearGasto = async (data) => {
+  const response = await api.post('/gastos/', data)
+  return response.data
+}
+
+export const crearCategoriaGasto = async (data) => {
+  const response = await api.post('/categorias-gastos/', data)
+  return response.data
+}

@@ -28,6 +28,7 @@ function CategoriaProductos() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Productos de la categoría</h1>
       {productos.map(producto => (
         <div key={producto.id}>

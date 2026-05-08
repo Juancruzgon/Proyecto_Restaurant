@@ -1,11 +1,13 @@
 from datetime import date
 from sqlmodel import Session, select, col
-from models.insumo import Insumo
+from models.insumo import Insumo, MovimientoStock
 import schemas
 from fastapi import HTTPException
 
-def obtener_insumos(session: Session):
+def obtener_insumos(session: Session, categoria_id: int = None):
     statement = select(Insumo)
+    if categoria_id:
+        statement = statement.where(Insumo.categoria_id == categoria_id)
     resultados = session.exec(statement)
     return resultados.all()
 
@@ -34,3 +36,19 @@ def eliminar_insumo(insumo_id: int, session: Session):
     session.delete(insumo_existente)
     session.commit()
     return {"detail": "Insumo eliminado"}
+
+def agregar_compra(insumo_id: int, cantidad: int, session: Session):
+    insumo_existente = session.exec(select(Insumo).where(Insumo.id == insumo_id)).first()
+    if not insumo_existente:
+        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    insumo_existente.stock_actual += cantidad
+    movimiento = MovimientoStock(
+        nro_id=insumo_id,
+        id_insumo=insumo_id,
+        cantidad=cantidad,
+    )
+    session.add(movimiento)
+    session.add(insumo_existente)
+    session.commit()
+    session.refresh(insumo_existente)
+    return insumo_existente

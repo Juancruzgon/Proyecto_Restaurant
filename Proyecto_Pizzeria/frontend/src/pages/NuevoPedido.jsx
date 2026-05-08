@@ -13,6 +13,7 @@ function NuevoPedido() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Nuevo Pedido</h1>
       <h2>Elegir salón</h2>
       {salones.map(s => (

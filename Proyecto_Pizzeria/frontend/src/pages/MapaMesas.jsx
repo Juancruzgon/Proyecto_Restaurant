@@ -32,6 +32,7 @@ function MapaMesas() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Mapa de Mesas</h1>
       <div>
         {mesas.map(mesa => (

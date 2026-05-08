@@ -128,6 +128,7 @@ function Pedido() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Mesa {mesaId}</h1>
       {pedido ? (
         <div>

@@ -10,6 +10,12 @@ def obtener_usuarios(session: Session):
     resultados = session.exec(statement)
     return resultados.all()
 
+def obtener_usuario(usuario_id: int, session: Session):
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return usuario
+
 def crear_usuario(usuario: schemas.UsuarioCreate, session: Session):
     nuevo_usuario = Usuario(**usuario.model_dump(exclude={"password"}), password=hashear_password(usuario.password))
     session.add(nuevo_usuario)

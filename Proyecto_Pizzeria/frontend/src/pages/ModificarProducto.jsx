@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getProductoPorId, modificarProducto, eliminarProducto } from '../services/api'
+import { getProductoPorId, modificarUsuario, eliminarProducto} from '../services/api'
 
 function ModificarProducto() {
   const [producto, setProducto] = useState(null)
@@ -37,6 +37,7 @@ const handleEliminar = () => {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Modificar Producto</h1>
       <form onSubmit={handleSubmit}>
         <div>

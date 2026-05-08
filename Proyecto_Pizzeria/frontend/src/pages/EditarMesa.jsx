@@ -27,6 +27,7 @@ function EditarMesa() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Editar Mesa</h1>
       <label>Número de mesa:</label>
       <input type="number" value={nroId} onChange={(e) => setNroId(e.target.value)} />

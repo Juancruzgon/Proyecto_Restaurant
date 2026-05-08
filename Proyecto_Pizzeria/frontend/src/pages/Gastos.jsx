@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCategorias, crearCategoria } from '../services/api'
+import { getCategoriasGasto, crearCategoriaGasto } from '../services/api'
 
-function Productos() {
+function Gastos() {
   const [categorias, setCategorias] = useState([])
-  const [nombreCategoria, setNombreCategoria] = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [nombreCategoria, setNombreCategoria] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    getCategorias().then(data => setCategorias(data))
+    getCategoriasGasto().then(data => setCategorias(data))
   }, [])
 
   const handleCrearCategoria = () => {
-    crearCategoria(nombreCategoria, '').then(() => {
-      getCategorias().then(data => setCategorias(data))
+    crearCategoriaGasto({ nombre: nombreCategoria }).then(() => {
+      getCategoriasGasto().then(data => setCategorias(data))
       setNombreCategoria('')
       setMostrarFormulario(false)
     })
@@ -23,23 +23,18 @@ function Productos() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
-      <button onClick={() => navigate('/dashboard')}>Inicio</button>
-      <h1>Categorias</h1>
+      <h1>Gastos</h1>
 
       {categorias.map(c => (
         <div key={c.id}>
           <span>{c.nombre}</span>
-          <button onClick={() => navigate(`/productos/${c.id}`)}>Ver productos</button>
+          <button onClick={() => navigate(`/gastos/${c.id}`)}>Ver →</button>
         </div>
       ))}
 
       {mostrarFormulario ? (
         <div>
-          <input
-            value={nombreCategoria}
-            onChange={(e) => setNombreCategoria(e.target.value)}
-            placeholder="Nombre de la categoría"
-          />
+          <input value={nombreCategoria} onChange={(e) => setNombreCategoria(e.target.value)} placeholder="Nombre de la categoría" />
           <button onClick={handleCrearCategoria}>Confirmar</button>
           <button onClick={() => setMostrarFormulario(false)}>Cancelar</button>
         </div>
@@ -50,4 +45,4 @@ function Productos() {
   )
 }
 
-export default Productos
+export default Gastos

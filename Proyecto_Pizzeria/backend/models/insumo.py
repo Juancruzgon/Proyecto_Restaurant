@@ -19,4 +19,4 @@ class MovimientoStock(SQLModel, table=True):
     id_insumo:int = Field(foreign_key="insumo.id")
     cantidad: int
     fecha: date = Field(default_factory=date.today)
-    tipo: str  # "entrada" | "salida"
+    #tipo: str  # "entrada" | "salida"

@@ -20,6 +20,7 @@ function Pedidos() {
   return (
     <div>
       <button onClick={() => navigate(-1)}>← Volver</button>
+      <button onClick={() => navigate('/dashboard')}>Inicio</button>
       <h1>Pedidos</h1>
       <button onClick={() => navigate('/nuevo-pedido')}>Nuevo Pedido</button>
 
