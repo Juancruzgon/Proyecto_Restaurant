@@ -5,15 +5,18 @@ from models.mesa import Mesa
 from models.producto import Producto
 import schemas
 from fastapi import HTTPException
-from auth import hashear_password
+
+TRANSICIONES_VALIDAS = {
+    1: 2,
+    2: 3,
+    3: 4,
+}
 
 def obtener_pedidos(session: Session, mesa_id: int = None):
     statement = select(Pedido).where(Pedido.activo == True)
     if mesa_id:
         statement = statement.where(Pedido.mesa_id == mesa_id)
-    resultados = session.exec(statement)
-    return resultados.all()
-
+    return session.exec(statement).all()
 
 
 def crear_pedido(pedido: schemas.PedidoCreate, session: Session):
@@ -23,18 +26,20 @@ def crear_pedido(pedido: schemas.PedidoCreate, session: Session):
         .order_by(Pedido.nro_pedido.desc())
     ).first()
     nro_pedido = (ultimo_pedido.nro_pedido + 1) if ultimo_pedido else 1
-    nuevo_pedido = Pedido(**pedido.model_dump(), estado_id=1, nro_pedido=nro_pedido)  # Asignar estado "Pendiente" por defecto
+    nuevo_pedido = Pedido(**pedido.model_dump(), estado_id=1, nro_pedido=nro_pedido)
     if pedido.mesa_id:
         mesa = session.exec(select(Mesa).where(Mesa.id == pedido.mesa_id)).first()
         if not mesa:
             raise HTTPException(status_code=404, detail="Mesa no encontrada")
         if mesa.estado_id != 1:
             raise HTTPException(status_code=400, detail="La mesa ya está ocupada")
-        mesa.estado_id = 2  # Cambiar estado de la mesa a "Ocupada"
+        mesa.estado_id = 2
+        session.add(mesa)
     session.add(nuevo_pedido)
     session.commit()
     session.refresh(nuevo_pedido)
     return nuevo_pedido
+
 
 def modificar_pedido(pedido_id: int, pedido: schemas.PedidoModify, session: Session):
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
@@ -46,6 +51,7 @@ def modificar_pedido(pedido_id: int, pedido: schemas.PedidoModify, session: Sess
     session.commit()
     session.refresh(pedido_existente)
     return pedido_existente
+
 
 def eliminar_pedido(pedido_id: int, session: Session):
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
@@ -62,23 +68,27 @@ def eliminar_pedido(pedido_id: int, session: Session):
     session.refresh(pedido_existente)
     return pedido_existente
 
+
 def cambiar_estado_pedido(pedido_id: int, session: Session):
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
     if not pedido_existente:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     siguiente_estado = TRANSICIONES_VALIDAS.get(pedido_existente.estado_id)
     if not siguiente_estado:
-        raise HTTPException(status_code=400, detail="No existen mas estados")
-    else:
-        pedido_existente.estado_id = siguiente_estado
-    mesa = session.exec(select(Mesa).where(Mesa.id == pedido_existente.mesa_id)).first()
-    if siguiente_estado == 4 and pedido_existente.mesa_id:
+        raise HTTPException(status_code=400, detail="No existen más estados")
+    pedido_existente.estado_id = siguiente_estado
+    if siguiente_estado == 4:
         pedido_existente.activo = False
-        mesa.estado_id = 1
+        if pedido_existente.mesa_id:
+            mesa = session.exec(select(Mesa).where(Mesa.id == pedido_existente.mesa_id)).first()
+            if mesa:
+                mesa.estado_id = 1
+                session.add(mesa)
     session.add(pedido_existente)
     session.commit()
     session.refresh(pedido_existente)
     return pedido_existente
+
 
 def detalle_pedido(pedido_id: int, detalle: schemas.DetallePedidoCreate, session: Session):
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
@@ -88,12 +98,12 @@ def detalle_pedido(pedido_id: int, detalle: schemas.DetallePedidoCreate, session
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     nuevo_detalle = DetallePedido(
-    pedido_id=pedido_id,
-    producto_id=detalle.producto_id,
-    cantidad=detalle.cantidad,
-    precio_unitario=producto.precio,
-    subtotal=producto.precio * detalle.cantidad
-)
+        pedido_id=pedido_id,
+        producto_id=detalle.producto_id,
+        cantidad=detalle.cantidad,
+        precio_unitario=producto.precio,
+        subtotal=producto.precio * detalle.cantidad,
+    )
     pedido_existente.total += nuevo_detalle.subtotal
     session.add(pedido_existente)
     session.add(nuevo_detalle)
@@ -101,11 +111,30 @@ def detalle_pedido(pedido_id: int, detalle: schemas.DetallePedidoCreate, session
     session.refresh(nuevo_detalle)
     return nuevo_detalle
 
+
 def mostrar_detalle_pedido(pedido_id: int, session: Session):
-    if not session.exec(select(Pedido).where(Pedido.id == pedido_id)).first():
+    pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
+    if not pedido_existente:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    detalles = session.exec(select(DetallePedido).where(DetallePedido.pedido_id == pedido_id)).all()
-    return detalles
+    detalles = session.exec(
+        select(DetallePedido).where(DetallePedido.pedido_id == pedido_id)
+    ).all()
+    # Enriquecer con nombre e imagen del producto
+    resultado = []
+    for d in detalles:
+        producto = session.get(Producto, d.producto_id)
+        resultado.append({
+            "id": d.id,
+            "pedido_id": d.pedido_id,
+            "producto_id": d.producto_id,
+            "cantidad": d.cantidad,
+            "precio_unitario": float(d.precio_unitario),
+            "subtotal": float(d.subtotal),
+            "nombre": producto.nombre if producto else None,
+            "imagen_url": producto.imagen_url if producto else None,
+        })
+    return resultado
+
 
 def eliminar_producto_pedido(detalle_id: int, session: Session):
     detalle_existente = session.exec(select(DetallePedido).where(DetallePedido.id == detalle_id)).first()
@@ -119,6 +148,7 @@ def eliminar_producto_pedido(detalle_id: int, session: Session):
     session.delete(detalle_existente)
     session.commit()
     return {"detail": "Producto eliminado del pedido"}
+
 
 def modificar_cantidad_pedido(detalle_id: int, cantidad: int, session: Session):
     detalle_existente = session.exec(select(DetallePedido).where(DetallePedido.id == detalle_id)).first()

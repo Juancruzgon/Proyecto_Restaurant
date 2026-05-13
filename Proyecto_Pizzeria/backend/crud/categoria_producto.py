@@ -1,7 +1,7 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.categoria_producto import CategoriaProducto
-import schemas
+from schemas.categoria_producto import CategoriaProductoCreate, CategoriaProductoModify
 from fastapi import HTTPException
 
 def obtener_categoria_productos(session: Session):
@@ -9,14 +9,14 @@ def obtener_categoria_productos(session: Session):
     resultados = session.exec(statement)
     return resultados.all()
 
-def crear_categoria_producto(categoria: schemas.CategoriaProductoCreate, session: Session):
+def crear_categoria_producto(categoria: CategoriaProductoCreate, session: Session):
     nueva_categoria = CategoriaProducto(**categoria.model_dump())
     session.add(nueva_categoria)
     session.commit()
     session.refresh(nueva_categoria)
     return nueva_categoria
 
-def modificar_categoria_producto(categoria_id: int, categoria: schemas.CategoriaProductoModify, session: Session):
+def modificar_categoria_producto(categoria_id: int, categoria: CategoriaProductoModify, session: Session):
     categoria_existente = session.exec(select(CategoriaProducto).where(CategoriaProducto.id == categoria_id)).first()
     if not categoria_existente:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")

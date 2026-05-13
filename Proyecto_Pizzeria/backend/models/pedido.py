@@ -6,7 +6,7 @@ from decimal import Decimal
 class Pedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     nro_pedido: int = Field(index=True)
-    tipo_pedido: str # Ejemplo: "Salón", "Mostrador", "Delivery"
+    tipo_pedido: str  # "Salon", "Takeaway", "Delivery"
     estado_id: int = Field(foreign_key="estadopedido.id")
     mesa_id: Optional[int] = Field(default=None, foreign_key="mesa.id")
     usuario_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
@@ -14,6 +14,8 @@ class Pedido(SQLModel, table=True):
     fecha: date = Field(default_factory=date.today)
     hora: time = Field(default_factory=lambda: datetime.now().time())
     activo: bool = Field(default=True)
+    pager: Optional[str] = Field(default=None)
+
 
 class DetallePedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -127,7 +127,7 @@ export const getCategorias = async (parentId = null) => {
   return response.data
 }
 
-export const crearCategoria = async (nombre, descripcion, parentId) => {
+export const crearCategoria = async (nombre, descripcion, parentId = null) => {
   const response = await api.post('/categorias-productos/', { nombre, descripcion, parent_id: parentId })
   return response.data
 }
@@ -242,5 +242,20 @@ export const crearGasto = async (data) => {
 
 export const crearCategoriaGasto = async (data) => {
   const response = await api.post('/categorias-gastos/', data)
+  return response.data
+}
+
+export const eliminarPedido = async (pedidoId) => {
+  const response = await api.delete(`/pedidos/${pedidoId}`)
+  return response.data
+}
+
+export const modificarCategoria = async (categoriaId, data) => {
+  const response = await api.put(`/categorias-productos/${categoriaId}`, data)
+  return response.data
+}
+
+export const eliminarCategoria = async (categoriaId) => {
+  const response = await api.delete(`/categorias-productos/${categoriaId}`)
   return response.data
 }

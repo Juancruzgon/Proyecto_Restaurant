@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
+import Layout from './components/Layout'
 import Login from './pages/Login'
 import MapaMesas from './pages/MapaMesas'
 import Pedido from './pages/Pedido'
@@ -18,27 +19,37 @@ import EditarInsumo from './pages/EditarInsumo'
 import Gastos from './pages/Gastos'
 import CategoriaGastos from './pages/CategoriaGastos'
 
+function W({ children }) {
+  return <Layout>{children}</Layout>
+}
+
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
-      <Route path="/mesas" element={<MapaMesas />} />
-      <Route path="/pedido/:mesaId" element={<Pedido />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/pedidos" element={<Pedidos />} />
-      <Route path="/nuevo-pedido" element={<NuevoPedido />} />
-      <Route path="/productos" element={<Productos />} />
-      <Route path="/productos/:categoriaId" element={<CategoriaProductos />} />
-      <Route path="/productos/:categoriaId/:productoId" element={<ModificarProducto />} />
-      <Route path="/mesas/:mesaId/editar" element={<EditarMesa />} />
-      <Route path="/mesas/nueva" element={<CrearMesa />} />
-      <Route path="/usuarios" element={<Usuarios />} />
-      <Route path="/usuarios/:usuarioId/editar" element={<EditarUsuario />} />
-      <Route path="/insumos/:categoriaId" element={<CategoriaInsumos />} />
-      <Route path="/insumos/:categoriaId/:insumoId" element={<EditarInsumo />} />
-      <Route path="/insumos" element={<Insumos />} />
-      <Route path="/gastos" element={<Gastos />} />
-      <Route path="/gastos/:categoriaId" element={<CategoriaGastos />} />
+
+      <Route path="/dashboard"                              element={<W><Dashboard /></W>} />
+      <Route path="/mesas"                                  element={<W><MapaMesas /></W>} />
+      <Route path="/mesas/nueva"                            element={<W><CrearMesa /></W>} />
+      <Route path="/mesas/:mesaId/editar"                   element={<W><EditarMesa /></W>} />
+      <Route path="/pedidos"                                element={<W><Pedidos /></W>} />
+      <Route path="/nuevo-pedido"                           element={<W><NuevoPedido /></W>} />
+
+      {/* Salón: con mesaId */}
+      <Route path="/pedido/:mesaId"                         element={<W><Pedido /></W>} />
+      {/* Takeaway / Delivery: sin mesaId */}
+      <Route path="/pedido/nuevo"                           element={<W><Pedido /></W>} />
+
+      <Route path="/productos"                              element={<W><Productos /></W>} />
+      <Route path="/productos/:categoriaId"                 element={<W><CategoriaProductos /></W>} />
+      <Route path="/productos/:categoriaId/:productoId"     element={<W><ModificarProducto /></W>} />
+      <Route path="/usuarios"                               element={<W><Usuarios /></W>} />
+      <Route path="/usuarios/:usuarioId/editar"             element={<W><EditarUsuario /></W>} />
+      <Route path="/insumos"                                element={<W><Insumos /></W>} />
+      <Route path="/insumos/:categoriaId"                   element={<W><CategoriaInsumos /></W>} />
+      <Route path="/insumos/:categoriaId/:insumoId"         element={<W><EditarInsumo /></W>} />
+      <Route path="/gastos"                                 element={<W><Gastos /></W>} />
+      <Route path="/gastos/:categoriaId"                    element={<W><CategoriaGastos /></W>} />
     </Routes>
   )
 }

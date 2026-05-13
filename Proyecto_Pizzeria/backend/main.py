@@ -7,7 +7,7 @@ from auth import verificar_password, crear_token
 from fastapi.security import OAuth2PasswordRequestForm 
 from websocket_manager import manager
 from fastapi import WebSocket
-from routers import producto, usuario, mesa, categoria_producto, categoria_gasto, gasto, insumo, salon, categoria_insumo, insumo, pedido, rol, promocion
+from routers import producto, usuario, mesa, categoria_producto, categoria_gasto, gasto, salon, categoria_insumo, insumo, pedido, rol, promocion
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -19,7 +19,6 @@ app.include_router(rol.router)
 app.include_router(categoria_producto.router)
 app.include_router(categoria_gasto.router)
 app.include_router(gasto.router)
-app.include_router(insumo.router)
 app.include_router(salon.router)
 app.include_router(categoria_insumo.router)
 app.include_router(insumo.router)
@@ -58,5 +57,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
         "access_token": token, 
         "token_type": "bearer",
         "rol_id": usuario.rol_id,
-        "nombre": usuario.nombre
+        "nombre": usuario.nombre,
+        "usuario_id": usuario.id
     }

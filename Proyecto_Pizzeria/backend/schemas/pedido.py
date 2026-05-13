@@ -6,11 +6,13 @@ class PedidoCreate(pydantic.BaseModel):
     tipo_pedido: str
     mesa_id: Optional[int] = None
     usuario_id: Optional[int] = None
+    pager: Optional[str] = None
 
 class PedidoModify(pydantic.BaseModel):
     tipo_pedido: Optional[str] = None
     mesa_id: Optional[int] = None
     usuario_id: Optional[int] = None
+    pager: Optional[str] = None
 
 class DetallePedidoCreate(pydantic.BaseModel):
     producto_id: int

@@ -1,7 +1,8 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.producto import Producto
-import schemas
+from models.categoria_producto import CategoriaProducto
+from schemas.producto import ProductoCreate, ProductoModify
 from fastapi import HTTPException
 from auth import hashear_password
 
@@ -13,14 +14,14 @@ def obtener_productos(session: Session, categoria_id: int = None):
     resultados = session.exec(statement)
     return resultados.all()
 
-def crear_producto(producto: schemas.ProductoCreate, session: Session):
+def crear_producto(producto: ProductoCreate, session: Session):
     nuevo_producto = Producto(**producto.model_dump())
     session.add(nuevo_producto)
     session.commit()
     session.refresh(nuevo_producto)
     return nuevo_producto
 
-def modificar_producto(producto_id: int, producto: schemas.ProductoModify, session: Session):
+def modificar_producto(producto_id: int, producto: ProductoModify, session: Session):
     producto_existente = session.exec(select(Producto).where(Producto.id == producto_id)).first()
     if not producto_existente:
         raise HTTPException(status_code=404, detail="Producto no encontrado")

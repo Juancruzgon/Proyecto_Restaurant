@@ -1,23 +1,46 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCategorias, crearCategoria } from '../services/api'
+import { getCategorias, crearCategoria, modificarCategoria, eliminarCategoria } from '../services/api'
 
 function Productos() {
   const [categorias, setCategorias] = useState([])
   const [nombreCategoria, setNombreCategoria] = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [categoriaEditando, setCategoriaEditando] = useState(null)
+  const [nombreEditar, setNombreEditar] = useState('')
   const navigate = useNavigate()
 
+  const cargarCategorias = () => getCategorias().then(data => setCategorias(data))
+
   useEffect(() => {
-    getCategorias().then(data => setCategorias(data))
+    cargarCategorias()
   }, [])
 
   const handleCrearCategoria = () => {
     crearCategoria(nombreCategoria, '').then(() => {
-      getCategorias().then(data => setCategorias(data))
+      cargarCategorias()
       setNombreCategoria('')
       setMostrarFormulario(false)
     })
+  }
+
+  const handleEditarCategoria = (c) => {
+    setCategoriaEditando(c.id)
+    setNombreEditar(c.nombre)
+  }
+
+  const handleGuardarCategoria = (id) => {
+    modificarCategoria(id, { nombre: nombreEditar }).then(() => {
+      cargarCategorias()
+      setCategoriaEditando(null)
+      setNombreEditar('')
+    })
+  }
+
+  const handleEliminarCategoria = (id) => {
+    if (window.confirm('¿Estás seguro que querés eliminar esta categoría?')) {
+      eliminarCategoria(id).then(() => cargarCategorias())
+    }
   }
 
   return (
@@ -33,14 +56,27 @@ function Productos() {
       <div className="max-w-2xl mx-auto mt-6 px-4">
         <div className="flex flex-col gap-3 mb-4">
           {categorias.map(c => (
-            <div key={c.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
-              <span className="font-semibold text-gray-700">{c.nombre}</span>
-              <button
-                onClick={() => navigate(`/productos/${c.id}`)}
-                className="text-sm text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition"
-              >
-                Ver productos
-              </button>
+            <div key={c.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+              {categoriaEditando === c.id ? (
+                <div className="flex gap-2">
+                  <input
+                    value={nombreEditar}
+                    onChange={(e) => setNombreEditar(e.target.value)}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <button onClick={() => handleGuardarCategoria(c.id)} className="bg-orange-500 text-white text-xs px-3 py-1 rounded-lg hover:bg-orange-600">Guardar</button>
+                  <button onClick={() => setCategoriaEditando(null)} className="border border-gray-300 text-gray-600 text-xs px-3 py-1 rounded-lg hover:bg-gray-50">Cancelar</button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-700">{c.nombre}</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => navigate(`/productos/${c.id}`)} className="text-sm text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition">Ver →</button>
+                    <button onClick={() => handleEditarCategoria(c)} className="text-sm text-blue-500 border border-blue-300 px-3 py-1 rounded-lg hover:bg-blue-50 transition">Editar</button>
+                    <button onClick={() => handleEliminarCategoria(c.id)} className="text-sm text-red-500 border border-red-300 px-3 py-1 rounded-lg hover:bg-red-50 transition">✕</button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

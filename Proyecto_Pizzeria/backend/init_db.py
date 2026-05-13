@@ -1,17 +1,19 @@
 from database import engine
 from sqlmodel import SQLModel
-import models.usuario
-import models.pedido
-import models.producto
-import models.mesa
-import models.rol
-import models.categoria_producto
-import models.categoria_gasto
-import models.gasto
-import models.insumo
-import models.salon
-import models.categoria_insumo
-import models.promocion
+from models.usuario import Usuario
+from models.pedido import Pedido, DetallePedido
+from models.producto import Producto
+from models.mesa import Mesa
+from models.rol import Rol
+from models.categoria_producto import CategoriaProducto
+from models.categoria_gasto import CategoriaGasto 
+from models.gasto import Gasto
+from models.insumo import Insumo, MovimientoStock
+from models.salon import Salon
+from models.categoria_insumo import CategoriaInsumo
+from models.promocion import Promocion
+from models.estado import EstadoMesa, EstadoPedido
+from models.gestor import GestorNegocio, GestorImpresora
 
 def create_db_and_tables():
     print("Conectando con la base de datos y creando tablas...")
