@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { getReporteVentas, getReporteComparar, getReporteProducto, getProductos } from '../services/api'
+import { getReporteVentas, getReporteComparar, getReporteProducto, getProductos, getHistorialCajas } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -13,49 +13,52 @@ function fmtPeso(val) {
   return '$' + Number(val).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
-function hoy() {
-  return new Date().toISOString().split('T')[0]
-}
-
-function hace(dias) {
-  const d = new Date()
-  d.setDate(d.getDate() - dias)
-  return d.toISOString().split('T')[0]
-}
+function hoy()      { return new Date().toISOString().split('T')[0] }
+function hace(dias) { const d = new Date(); d.setDate(d.getDate() - dias); return d.toISOString().split('T')[0] }
 
 const PERIODOS = [
-  { id: 'hoy',      label: 'Hoy',      desde: () => hoy(),     hasta: () => hoy()     },
-  { id: 'semana',   label: 'Semana',   desde: () => hace(6),   hasta: () => hoy()     },
-  { id: 'mes',      label: 'Mes',      desde: () => hace(29),  hasta: () => hoy()     },
-  { id: 'anio',     label: 'Año',      desde: () => hace(364), hasta: () => hoy()     },
-  { id: 'custom',   label: 'Personalizado', desde: null, hasta: null },
+  { id: 'hoy',    label: 'Hoy',    desde: () => hoy(),     hasta: () => hoy()     },
+  { id: 'semana', label: 'Semana', desde: () => hace(6),   hasta: () => hoy()     },
+  { id: 'mes',    label: 'Mes',    desde: () => hace(29),  hasta: () => hoy()     },
+  { id: 'anio',   label: 'Año',    desde: () => hace(364), hasta: () => hoy()     },
+  { id: 'custom', label: 'Personalizado', desde: null, hasta: null },
 ]
+
+const METODO_LABELS = { efectivo: '💵 Efectivo', tarjeta: '💳 Tarjeta', qr: '📱 QR', mixto: '🔀 Mixto' }
 
 export default function Reportes() {
   const reporteRef = useRef(null)
 
-  const [periodo,       setPeriodo]       = useState('semana')
-  const [desdeCustom,   setDesdeCustom]   = useState(hace(6))
-  const [hastaCustom,   setHastaCustom]   = useState(hoy())
-  const [comparar,      setComparar]      = useState(false)
-  const [desde2,        setDesde2]        = useState(hace(13))
-  const [hasta2,        setHasta2]        = useState(hace(7))
-  const [reporte,       setReporte]       = useState(null)
-  const [reporte2,      setReporte2]      = useState(null)
-  const [loading,       setLoading]       = useState(false)
-  const [productos,     setProductos]     = useState([])
-  const [prodSel,       setProdSel]       = useState('')
-  const [reporteProd,   setReporteProd]   = useState(null)
-  const [loadingProd,   setLoadingProd]   = useState(false)
-  const [tab,           setTab]           = useState('resumen') // resumen | productos | categorias | horario | producto
+  const [periodo,      setPeriodo]      = useState('semana')
+  const [desdeCustom,  setDesdeCustom]  = useState(hace(6))
+  const [hastaCustom,  setHastaCustom]  = useState(hoy())
+  const [comparar,     setComparar]     = useState(false)
+  const [desde2,       setDesde2]       = useState(hace(13))
+  const [hasta2,       setHasta2]       = useState(hace(7))
+  const [cajaFiltro,   setCajaFiltro]   = useState('')
+  const [cajas,        setCajas]        = useState([])
+  const [reporte,      setReporte]      = useState(null)
+  const [reporte2,     setReporte2]     = useState(null)
+  const [loading,      setLoading]      = useState(false)
+  const [productos,    setProductos]    = useState([])
+  const [prodSel,      setProdSel]      = useState('')
+  const [reporteProd,  setReporteProd]  = useState(null)
+  const [loadingProd,  setLoadingProd]  = useState(false)
+  const [tab,          setTab]          = useState('horario')
 
   useEffect(() => {
     getProductos().then(data => setProductos(data.filter(p => p.activo)))
+    getHistorialCajas().then(data => setCajas(data))
   }, [])
 
   const getDesdeHasta = () => {
+    if (cajaFiltro) {
+      // Si hay caja seleccionada, usar rango amplio
+      return { desde: hace(365), hasta: hoy() }
+    }
     if (periodo === 'custom') return { desde: desdeCustom, hasta: hastaCustom }
     const p = PERIODOS.find(p => p.id === periodo)
+    if (!p || !p.desde) return { desde: hace(6), hasta: hoy() }
     return { desde: p.desde(), hasta: p.hasta() }
   }
 
@@ -68,7 +71,7 @@ export default function Reportes() {
         setReporte(data.periodo1)
         setReporte2(data.periodo2)
       } else {
-        const data = await getReporteVentas(desde, hasta)
+        const data = await getReporteVentas(desde, hasta, cajaFiltro || null)
         setReporte(data)
         setReporte2(null)
       }
@@ -89,14 +92,18 @@ export default function Reportes() {
     }
   }
 
-  const exportarPDF = () => {
-    window.print()
-  }
-
   const inputStyle = {
     padding: '7px 10px', border: '1px solid #EDE0DB', borderRadius: 8,
     fontSize: 12, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', background: '#fff',
   }
+
+  const TABS = [
+    { id: 'horario',    label: '📈 Por horario'   },
+    { id: 'productos',  label: '🏆 Más vendidos'  },
+    { id: 'categorias', label: '🥧 Por categoría' },
+    { id: 'pedidos',    label: '📋 Pedidos'       },
+    { id: 'producto',   label: '🔍 Producto'      },
+  ]
 
   return (
     <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }} ref={reporteRef}>
@@ -107,10 +114,8 @@ export default function Reportes() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Reportes</div>
           <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>Análisis de ventas y productos</div>
         </div>
-        <button
-          onClick={exportarPDF}
-          style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-        >
+        <button onClick={() => window.print()}
+          style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
           📄 Exportar PDF
         </button>
       </div>
@@ -122,12 +127,23 @@ export default function Reportes() {
           {/* Selector período */}
           <div style={{ display: 'flex', gap: 6 }}>
             {PERIODOS.map(p => (
-              <button key={p.id} onClick={() => setPeriodo(p.id)}
-                style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${periodo === p.id ? WINE : '#EDE0DB'}`, background: periodo === p.id ? WINE : '#fff', color: periodo === p.id ? '#fff' : '#5C3A2E' }}>
+              <button key={p.id} onClick={() => { setPeriodo(p.id); setCajaFiltro('') }}
+                style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${periodo === p.id && !cajaFiltro ? WINE : '#EDE0DB'}`, background: periodo === p.id && !cajaFiltro ? WINE : '#fff', color: periodo === p.id && !cajaFiltro ? '#fff' : '#5C3A2E' }}>
                 {p.label}
               </button>
             ))}
           </div>
+
+          {/* Selector caja */}
+          <select value={cajaFiltro} onChange={e => { setCajaFiltro(e.target.value); setPeriodo('') }}
+            style={{ ...inputStyle, minWidth: 200 }}>
+            <option value="">Todas las cajas</option>
+            {cajas.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.activo ? '🟢 ' : ''}Caja #{c.id} — {new Date(c.fecha_apertura).toLocaleDateString('es-AR')} {new Date(c.fecha_apertura).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+              </option>
+            ))}
+          </select>
 
           {/* Fechas custom */}
           {periodo === 'custom' && (
@@ -139,12 +155,12 @@ export default function Reportes() {
           )}
 
           {/* Toggle comparar */}
-          <button
-            onClick={() => setComparar(v => !v)}
-            style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${comparar ? '#1D4ED8' : '#EDE0DB'}`, background: comparar ? '#EFF6FF' : '#fff', color: comparar ? '#1D4ED8' : '#5C3A2E' }}
-          >
-            ⇄ Comparar períodos
-          </button>
+          {!cajaFiltro && (
+            <button onClick={() => setComparar(v => !v)}
+              style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${comparar ? '#1D4ED8' : '#EDE0DB'}`, background: comparar ? '#EFF6FF' : '#fff', color: comparar ? '#1D4ED8' : '#5C3A2E' }}>
+              ⇄ Comparar períodos
+            </button>
+          )}
 
           <button onClick={cargar} disabled={loading}
             style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -153,7 +169,7 @@ export default function Reportes() {
         </div>
 
         {/* Período 2 */}
-        {comparar && (
+        {comparar && !cajaFiltro && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #EDE0DB' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>Período 2:</span>
             <input type="date" value={desde2} onChange={e => setDesde2(e.target.value)} style={inputStyle} />
@@ -165,61 +181,66 @@ export default function Reportes() {
 
       {!reporte ? (
         <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '64px 0' }}>
-          Seleccioná un período y hacé click en "Ver reporte"
+          Seleccioná un período o caja y hacé click en "Ver reporte"
         </div>
       ) : (
         <>
           {/* Cards resumen */}
-          <div style={{ display: 'grid', gridTemplateColumns: comparar ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: comparar ? '1fr 1fr 1fr' : 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
             {comparar ? (
-              <>
-                {/* Comparación lado a lado */}
-                {[
-                  { label: 'Total ventas',    v1: fmtPeso(reporte.total_ventas),    v2: fmtPeso(reporte2?.total_ventas || 0) },
-                  { label: 'Total pedidos',   v1: reporte.total_pedidos,            v2: reporte2?.total_pedidos || 0 },
-                  { label: 'Ticket promedio', v1: fmtPeso(reporte.ticket_promedio), v2: fmtPeso(reporte2?.ticket_promedio || 0) },
-                ].map((item, i) => (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '18px 20px' }}>
-                    <div style={{ fontSize: 12, color: '#A0786A', fontWeight: 500, marginBottom: 12 }}>{item.label}</div>
-                    <div style={{ display: 'flex', gap: 20 }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: WINE, fontWeight: 600, marginBottom: 4 }}>Período 1</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#1A0A06' }}>{item.v1}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600, marginBottom: 4 }}>Período 2</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#1A0A06' }}>{item.v2}</div>
-                      </div>
+              [
+                { label: 'Total ventas',    v1: fmtPeso(reporte.total_ventas),    v2: fmtPeso(reporte2?.total_ventas || 0) },
+                { label: 'Total pedidos',   v1: reporte.total_pedidos,            v2: reporte2?.total_pedidos || 0 },
+                { label: 'Ticket promedio', v1: fmtPeso(reporte.ticket_promedio), v2: fmtPeso(reporte2?.ticket_promedio || 0) },
+              ].map((item, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '18px 20px' }}>
+                  <div style={{ fontSize: 12, color: '#A0786A', fontWeight: 500, marginBottom: 12 }}>{item.label}</div>
+                  <div style={{ display: 'flex', gap: 20 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: WINE, fontWeight: 600, marginBottom: 4 }}>Período 1</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1A0A06' }}>{item.v1}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#1D4ED8', fontWeight: 600, marginBottom: 4 }}>Período 2</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1A0A06' }}>{item.v2}</div>
                     </div>
                   </div>
-                ))}
-              </>
+                </div>
+              ))
             ) : (
               <>
                 <div style={{ background: WINE, borderRadius: 14, padding: '20px 22px', color: '#fff' }}>
-                  <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 8 }}>Total ventas</div>
-                  <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-1px' }}>{fmtPeso(reporte.total_ventas)}</div>
+                  <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 8 }}>Total ventas</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1px' }}>{fmtPeso(reporte.total_ventas)}</div>
                 </div>
                 <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 13, color: '#A0786A', marginBottom: 8 }}>Total pedidos</div>
-                  <div style={{ fontSize: 36, fontWeight: 800, color: '#1A0A06' }}>{reporte.total_pedidos}</div>
+                  <div style={{ fontSize: 12, color: '#A0786A', marginBottom: 8 }}>Total pedidos</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#1A0A06' }}>{reporte.total_pedidos}</div>
                 </div>
                 <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 13, color: '#A0786A', marginBottom: 8 }}>Ticket promedio</div>
-                  <div style={{ fontSize: 36, fontWeight: 800, color: '#1A0A06' }}>{fmtPeso(reporte.ticket_promedio)}</div>
+                  <div style={{ fontSize: 12, color: '#A0786A', marginBottom: 8 }}>Ticket promedio</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#1A0A06' }}>{fmtPeso(reporte.ticket_promedio)}</div>
+                </div>
+                {/* Desglose por método */}
+                <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px 22px' }}>
+                  <div style={{ fontSize: 12, color: '#A0786A', marginBottom: 8 }}>Por método de pago</div>
+                  {Object.entries(reporte.por_metodo || {}).map(([metodo, monto]) => (
+                    <div key={metodo} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                      <span style={{ color: '#5C3A2E' }}>{METODO_LABELS[metodo] || metodo}</span>
+                      <span style={{ fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(monto)}</span>
+                    </div>
+                  ))}
+                  {Object.keys(reporte.por_metodo || {}).length === 0 && (
+                    <div style={{ fontSize: 12, color: '#C09080' }}>Sin datos</div>
+                  )}
                 </div>
               </>
             )}
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-            {[
-              { id: 'horario',    label: '📈 Por horario'   },
-              { id: 'productos',  label: '🏆 Más vendidos'  },
-              { id: 'categorias', label: '🥧 Por categoría' },
-              { id: 'producto',   label: '🔍 Producto'      },
-            ].map(t => (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+            {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 style={{ padding: '7px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${tab === t.id ? WINE : '#EDE0DB'}`, background: tab === t.id ? WINE : '#fff', color: tab === t.id ? '#fff' : '#5C3A2E' }}>
                 {t.label}
@@ -227,22 +248,22 @@ export default function Reportes() {
             ))}
           </div>
 
-          {/* Gráfico horario */}
+          {/* Gráfico horario — HORIZONTAL */}
           {tab === 'horario' && (
             <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px' }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 16 }}>Ventas por horario</div>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={reporte.por_hora}>
+              <ResponsiveContainer width="100%" height={reporte.por_hora.length * 40 + 60}>
+                <BarChart data={reporte.por_hora} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#F5EDE8" />
-                  <XAxis dataKey="hora" tick={{ fontSize: 11, fill: '#A0786A' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#A0786A' }} tickFormatter={v => '$' + v.toLocaleString('es-AR')} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#A0786A' }} tickFormatter={v => '$' + v.toLocaleString('es-AR')} />
+                  <YAxis type="category" dataKey="hora" tick={{ fontSize: 11, fill: '#A0786A' }} width={55} />
                   <Tooltip formatter={v => fmtPeso(v)} />
                   {comparar && reporte2 && <Legend />}
-                  <Line type="monotone" dataKey="ventas" stroke={WINE} strokeWidth={2} dot={false} name="Período 1" />
+                  <Bar dataKey="ventas" fill={WINE} radius={[0, 4, 4, 0]} name="Período 1" />
                   {comparar && reporte2 && (
-                    <Line type="monotone" data={reporte2.por_hora} dataKey="ventas" stroke="#1D4ED8" strokeWidth={2} dot={false} name="Período 2" />
+                    <Bar data={reporte2.por_hora} dataKey="ventas" fill="#1D4ED8" radius={[0, 4, 4, 0]} name="Período 2" />
                   )}
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
@@ -259,9 +280,6 @@ export default function Reportes() {
                   <Tooltip formatter={(v, name) => name === 'total' ? fmtPeso(v) : v} />
                   <Legend />
                   <Bar dataKey="cantidad" fill={WINE} name="Cantidad" radius={[0, 4, 4, 0]} />
-                  {comparar && reporte2 && (
-                    <Bar dataKey="cantidad" data={reporte2.productos_top} fill="#1D4ED8" name="Período 2" radius={[0, 4, 4, 0]} />
-                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -274,7 +292,8 @@ export default function Reportes() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={reporte.por_categoria} dataKey="total" nameKey="categoria" cx="50%" cy="50%" outerRadius={100} label={({ categoria, percent }) => `${categoria} ${(percent * 100).toFixed(0)}%`}>
+                    <Pie data={reporte.por_categoria} dataKey="total" nameKey="categoria" cx="50%" cy="50%" outerRadius={100}
+                      label={({ categoria, percent }) => `${categoria} ${(percent * 100).toFixed(0)}%`}>
                       {reporte.por_categoria.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={v => fmtPeso(v)} />
@@ -295,6 +314,47 @@ export default function Reportes() {
             </div>
           )}
 
+          {/* Listado pedidos */}
+          {tab === 'pedidos' && (
+            <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #EDE0DB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>Listado de pedidos</div>
+                <div style={{ fontSize: 13, color: '#A0786A' }}>{reporte.pedidos.length} pedidos</div>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#F8F5F4' }}>
+                      {['#', 'Fecha', 'Hora', 'Tipo', 'Mesa', 'Total', 'Método'].map(h => (
+                        <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: '#A0786A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reporte.pedidos.map((p, i) => (
+                      <tr key={p.id} style={{ borderTop: '1px solid #F5EDE8', background: i % 2 === 0 ? '#fff' : '#FEFCFB' }}>
+                        <td style={{ padding: '10px 16px', color: '#A0786A' }}>#{p.nro_pedido}</td>
+                        <td style={{ padding: '10px 16px', color: '#1A0A06' }}>{p.fecha}</td>
+                        <td style={{ padding: '10px 16px', color: '#1A0A06' }}>{p.hora}</td>
+                        <td style={{ padding: '10px 16px', color: '#1A0A06' }}>{p.tipo_pedido}</td>
+                        <td style={{ padding: '10px 16px', color: '#1A0A06' }}>{p.mesa_id ? `Mesa ${p.mesa_id}` : '—'}</td>
+                        <td style={{ padding: '10px 16px', fontWeight: 700, color: WINE }}>{fmtPeso(p.total)}</td>
+                        <td style={{ padding: '10px 16px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#F3F4F6', color: '#374151' }}>
+                            {METODO_LABELS[p.metodo_pago] || p.metodo_pago}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {reporte.pedidos.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '32px 0' }}>Sin pedidos en este período</div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Producto específico */}
           {tab === 'producto' && (
             <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px' }}>
@@ -310,7 +370,6 @@ export default function Reportes() {
                   {loadingProd ? 'Cargando...' : 'Ver'}
                 </button>
               </div>
-
               {reporteProd && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>

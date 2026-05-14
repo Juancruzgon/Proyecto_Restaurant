@@ -318,15 +318,6 @@ export const cerrarCaja = async () => {
   return response.data
 }
 
-export const getHistorialCajas = async () => {
-  const response = await api.get('/caja/historial')
-  return response.data
-}
-export const getReporteVentas = async (desde, hasta) => {
-  const response = await api.get(`/reportes/ventas?desde=${desde}&hasta=${hasta}`)
-  return response.data
-}
-
 export const getReporteProducto = async (productoId, desde, hasta) => {
   const response = await api.get(`/reportes/producto/${productoId}?desde=${desde}&hasta=${hasta}`)
   return response.data
@@ -339,5 +330,28 @@ export const getReporteComparar = async (desde1, hasta1, desde2, hasta2) => {
 
 export const cobrarPedido = async (pedidoId, pagos) => {
   const response = await api.put(`/pedidos/${pedidoId}/cobrar`, { pagos })
+  return response.data
+}
+export const getPagosParciales = async (pedidoId) => {
+  const response = await api.get(`/pagos-parciales/pedido/${pedidoId}`)
+  return response.data
+}
+
+export const registrarPagoParcial = async (pedidoId, items) => {
+  const response = await api.post(`/pagos-parciales/pedido/${pedidoId}`, { items })
+  return response.data
+}
+export const getHistorialCajas = async () => {
+  const response = await api.get('/reportes/cajas')
+  return response.data
+}
+
+export const getReporteVentas = async (desde, hasta, cajaId = null) => {
+  const params = cajaId ? `?desde=${desde}&hasta=${hasta}&caja_id=${cajaId}` : `?desde=${desde}&hasta=${hasta}`
+  const response = await api.get(`/reportes/ventas${params}`)
+  return response.data
+}
+export const getInsumoById = async (insumoId) => {
+  const response = await api.get(`/insumos/${insumoId}`)
   return response.data
 }

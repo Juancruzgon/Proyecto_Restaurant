@@ -1,3 +1,4 @@
+# routers/reporte.py
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from database import get_session
@@ -5,8 +6,10 @@ from models.usuario import Usuario
 from models.pedido import Pedido, DetallePedido
 from models.producto import Producto
 from models.categoria_producto import CategoriaProducto
+from models.caja import Caja
+from models.pago import Pago
 from auth import get_current_user
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 router = APIRouter(
@@ -14,14 +17,15 @@ router = APIRouter(
     tags=["reportes"]
 )
 
-def get_pedidos_pagados(session: Session, desde: date, hasta: date):
-    return session.exec(
-        select(Pedido).where(
-            Pedido.estado_id == 4,
-            Pedido.fecha >= desde,
-            Pedido.fecha <= hasta,
-        )
-    ).all()
+def get_pedidos_pagados(session: Session, desde: date, hasta: date, caja_id: int = None):
+    statement = select(Pedido).where(
+        Pedido.estado_id == 4,
+        Pedido.fecha >= desde,
+        Pedido.fecha <= hasta,
+    )
+    if caja_id:
+        statement = statement.where(Pedido.caja_id == caja_id)
+    return session.exec(statement).all()
 
 def calcular_reporte(pedidos: list, session: Session):
     if not pedidos:
@@ -32,10 +36,12 @@ def calcular_reporte(pedidos: list, session: Session):
             "por_hora": [],
             "por_categoria": [],
             "productos_top": [],
+            "pedidos": [],
+            "por_metodo": {},
         }
 
-    total_ventas  = sum(float(p.total) for p in pedidos)
-    total_pedidos = len(pedidos)
+    total_ventas    = sum(float(p.total) for p in pedidos)
+    total_pedidos   = len(pedidos)
     ticket_promedio = total_ventas / total_pedidos if total_pedidos else 0
 
     # Ventas por hora
@@ -45,7 +51,7 @@ def calcular_reporte(pedidos: list, session: Session):
         por_hora[h] = por_hora.get(h, 0) + float(p.total)
     por_hora_lista = [{"hora": f"{h:02d}:00", "ventas": round(v, 2)} for h, v in sorted(por_hora.items())]
 
-    # Detalles de todos los pedidos
+    # Detalles
     pedido_ids = [p.id for p in pedidos]
     detalles = session.exec(
         select(DetallePedido).where(DetallePedido.pedido_id.in_(pedido_ids))
@@ -85,6 +91,29 @@ def calcular_reporte(pedidos: list, session: Session):
         for k, v in sorted(cat_ventas.items(), key=lambda x: x[1], reverse=True)
     ]
 
+    # Desglose por método de pago
+    pagos = session.exec(
+        select(Pago).where(Pago.pedido_id.in_(pedido_ids))
+    ).all()
+    por_metodo = {}
+    for pago in pagos:
+        por_metodo[pago.metodo] = round(por_metodo.get(pago.metodo, 0) + float(pago.monto), 2)
+
+    # Listado de pedidos
+    pedidos_lista = []
+    for p in sorted(pedidos, key=lambda x: (x.fecha, x.hora), reverse=True):
+        metodo = p.metodo_pago or "—"
+        pedidos_lista.append({
+            "id":          p.id,
+            "nro_pedido":  p.nro_pedido,
+            "fecha":       str(p.fecha),
+            "hora":        str(p.hora)[:5] if p.hora else "—",
+            "tipo_pedido": p.tipo_pedido,
+            "mesa_id":     p.mesa_id,
+            "total":       float(p.total),
+            "metodo_pago": metodo,
+        })
+
     return {
         "total_ventas":    round(total_ventas, 2),
         "total_pedidos":   total_pedidos,
@@ -92,6 +121,8 @@ def calcular_reporte(pedidos: list, session: Session):
         "por_hora":        por_hora_lista,
         "por_categoria":   por_categoria,
         "productos_top":   productos_top,
+        "pedidos":         pedidos_lista,
+        "por_metodo":      por_metodo,
     }
 
 
@@ -99,11 +130,33 @@ def calcular_reporte(pedidos: list, session: Session):
 def reporte_ventas(
     desde: date,
     hasta: date,
+    caja_id: int = None,
     session: Session = Depends(get_session),
     current_user: Usuario = Depends(get_current_user)
 ):
-    pedidos = get_pedidos_pagados(session, desde, hasta)
+    pedidos = get_pedidos_pagados(session, desde, hasta, caja_id)
     return calcular_reporte(pedidos, session)
+
+
+@router.get("/cajas")
+def historial_cajas(
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user)
+):
+    cajas = session.exec(select(Caja).order_by(Caja.fecha_apertura.desc())).all()
+    resultado = []
+    for c in cajas:
+        usuario = session.get(Usuario, c.usuario_id)
+        resultado.append({
+            "id":             c.id,
+            "usuario":        f"{usuario.nombre} {usuario.apellido}" if usuario else "—",
+            "fecha_apertura": str(c.fecha_apertura),
+            "fecha_cierre":   str(c.fecha_cierre) if c.fecha_cierre else None,
+            "total_ventas":   float(c.total_ventas),
+            "total_pedidos":  c.total_pedidos,
+            "activo":         c.activo,
+        })
+    return resultado
 
 
 @router.get("/producto/{producto_id}")
@@ -124,11 +177,10 @@ def reporte_producto(
         )
     ).all()
 
-    producto = session.get(Producto, producto_id)
+    producto       = session.get(Producto, producto_id)
     total_cantidad = sum(d.cantidad for d in detalles)
     total_ventas   = sum(float(d.subtotal) for d in detalles)
 
-    # Ventas por día
     por_dia = {}
     for d in detalles:
         pedido = session.get(Pedido, d.pedido_id)
@@ -137,10 +189,10 @@ def reporte_producto(
             por_dia[dia] = por_dia.get(dia, 0) + d.cantidad
 
     return {
-        "producto":        producto.nombre if producto else f"Producto {producto_id}",
-        "total_cantidad":  total_cantidad,
-        "total_ventas":    round(total_ventas, 2),
-        "por_dia":         [{"fecha": k, "cantidad": v} for k, v in sorted(por_dia.items())],
+        "producto":       producto.nombre if producto else f"Producto {producto_id}",
+        "total_cantidad": total_cantidad,
+        "total_ventas":   round(total_ventas, 2),
+        "por_dia":        [{"fecha": k, "cantidad": v} for k, v in sorted(por_dia.items())],
     }
 
 
@@ -155,19 +207,9 @@ def comparar_periodos(
 ):
     pedidos1 = get_pedidos_pagados(session, desde1, hasta1)
     pedidos2 = get_pedidos_pagados(session, desde2, hasta2)
-
     reporte1 = calcular_reporte(pedidos1, session)
     reporte2 = calcular_reporte(pedidos2, session)
-
     return {
-        "periodo1": {
-            "desde": str(desde1),
-            "hasta": str(hasta1),
-            **reporte1,
-        },
-        "periodo2": {
-            "desde": str(desde2),
-            "hasta": str(hasta2),
-            **reporte2,
-        },
+        "periodo1": {"desde": str(desde1), "hasta": str(hasta1), **reporte1},
+        "periodo2": {"desde": str(desde2), "hasta": str(hasta2), **reporte2},
     }

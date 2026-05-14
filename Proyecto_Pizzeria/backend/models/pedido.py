@@ -26,3 +26,4 @@ class DetallePedido(SQLModel, table=True):
     precio_unitario: Decimal = Field(max_digits=10, decimal_places=2)
     subtotal: Decimal = Field(max_digits=10, decimal_places=2)
     nota: Optional[str] = Field(default=None)
+    cantidad_pagada: int = Field(default=0)  

@@ -18,6 +18,7 @@ from models.recordatorio import Recordatorio
 from models.receta import RecetaProducto
 from models.caja import Caja
 from models.pago import Pago
+from models.pago_parcial import PagoParcial
 
 def create_db_and_tables():
     print("Conectando con la base de datos y creando tablas...")

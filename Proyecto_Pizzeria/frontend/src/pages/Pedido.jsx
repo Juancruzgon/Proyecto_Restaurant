@@ -5,6 +5,7 @@ import {
   cambiarEstadoPedido, eliminarDetalle, agregarDetalle,
   getCategorias, eliminarPedido, getUsuarioPorId,
   modificarCantidad, modificarNota, imprimirComanda, imprimirTicket,
+  getPagosParciales, registrarPagoParcial
 } from '../services/api'
 import api from '../services/api'
 
@@ -45,12 +46,18 @@ export default function Pedido() {
   const [buscador,      setBuscador]      = useState('')
   const [itemsTemp,     setItemsTemp]     = useState([])
 
-  const [notaActiva,        setNotaActiva]        = useState(null)
-  const [notaInput,         setNotaInput]         = useState('')
-  const [imprimiendo,       setImprimiendo]       = useState(false)
-  const [mostrarModalCobro, setMostrarModalCobro] = useState(false)
-  const [pagos,             setPagos]             = useState([{ metodo: 'efectivo', monto: '' }])
-  const [errorCobro,        setErrorCobro]        = useState('')
+  const [notaActiva,          setNotaActiva]          = useState(null)
+  const [notaInput,           setNotaInput]           = useState('')
+  const [imprimiendo,         setImprimiendo]         = useState(false)
+  const [mostrarModalCobro,   setMostrarModalCobro]   = useState(false)
+  const [pagos,               setPagos]               = useState([{ metodo: 'efectivo', monto: '' }])
+  const [errorCobro,          setErrorCobro]          = useState('')
+  const [mostrarModalPorItem, setMostrarModalPorItem] = useState(false)
+  const [datosPorItem,        setDatosPorItem]        = useState(null)
+  const [itemsSeleccionados,  setItemsSeleccionados]  = useState({})
+  const [metodoPorItem,       setMetodoPorItem]       = useState('efectivo')
+  const [loadingPorItem,      setLoadingPorItem]      = useState(false)
+  const [errorPorItem,        setErrorPorItem]        = useState('')
 
   const cargarPedido = useCallback(async () => {
     if (pedidoId) {
@@ -213,20 +220,60 @@ export default function Pedido() {
     }
   }
 
-  const agregarMetodoPago = () => {
-    setPagos(prev => [...prev, { metodo: 'efectivo', monto: '' }])
-  }
+  const agregarMetodoPago = () => setPagos(prev => [...prev, { metodo: 'efectivo', monto: '' }])
 
   const actualizarPago = (idx, field, value) => {
-    setPagos(prev => {
-      const c = [...prev]
-      c[idx] = { ...c[idx], [field]: value }
-      return c
+    setPagos(prev => { const c = [...prev]; c[idx] = { ...c[idx], [field]: value }; return c })
+  }
+
+  const eliminarPago = (idx) => setPagos(prev => prev.filter((_, i) => i !== idx))
+
+  const handleAbrirPorItem = async () => {
+    setLoadingPorItem(true)
+    try {
+      const data = await getPagosParciales(pedido.id)
+      setDatosPorItem(data)
+      setItemsSeleccionados({})
+      setMetodoPorItem('efectivo')
+      setErrorPorItem('')
+      setMostrarModalPorItem(true)
+    } finally {
+      setLoadingPorItem(false)
+    }
+  }
+
+  const toggleItem = (detalleId, cantidadPendiente) => {
+    setItemsSeleccionados(prev => {
+      if (prev[detalleId]) { const n = { ...prev }; delete n[detalleId]; return n }
+      return { ...prev, [detalleId]: cantidadPendiente }
     })
   }
 
-  const eliminarPago = (idx) => {
-    setPagos(prev => prev.filter((_, i) => i !== idx))
+  const handleCobrarPorItem = async () => {
+    setErrorPorItem('')
+    const items = Object.entries(itemsSeleccionados)
+      .filter(([_, cant]) => cant > 0)
+      .map(([detalleId, cantidad]) => {
+        const detalle = datosPorItem.detalles.find(d => d.detalle_id === parseInt(detalleId))
+        const monto   = detalle ? detalle.precio_unitario * cantidad : 0
+        return { detalle_id: parseInt(detalleId), cantidad, metodo: metodoPorItem, monto }
+      })
+    if (items.length === 0) { setErrorPorItem('Seleccioná al menos un item'); return }
+    setLoadingPorItem(true)
+    try {
+      const result = await registrarPagoParcial(pedido.id, items)
+      if (result.pedido_cerrado) {
+        navigate(esSalon ? '/mesas' : '/pedidos')
+      } else {
+        const data = await getPagosParciales(pedido.id)
+        setDatosPorItem(data)
+        setItemsSeleccionados({})
+      }
+    } catch (e) {
+      setErrorPorItem(e.response?.data?.detail || 'Error al registrar pago')
+    } finally {
+      setLoadingPorItem(false)
+    }
   }
 
   const handleImprimirComanda = async () => {
@@ -241,23 +288,18 @@ export default function Pedido() {
     navigate(esSalon ? '/mesas' : '/pedidos')
   }
 
-  const totalTemp  = itemsTemp.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0)
-  const est        = pedido ? ESTADOS[pedido.estado_id] : null
+  const totalTemp = itemsTemp.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0)
+  const est       = pedido ? ESTADOS[pedido.estado_id] : null
 
   const tituloPanel = pedidoId
-    ? pedido
-      ? `${pedido.tipo_pedido}${pedido.pager ? ` · Pager ${pedido.pager}` : ''}`
-      : tipoPedido
-    : esSalon
-      ? `Mesa ${mesaId}`
-      : tipoPedido === 'Takeaway'
-        ? `Takeaway${pagerParam ? ` · Pager ${pagerParam}` : ''}`
-        : 'Delivery'
+    ? pedido ? `${pedido.tipo_pedido}${pedido.pager ? ` · Pager ${pedido.pager}` : ''}` : tipoPedido
+    : esSalon ? `Mesa ${mesaId}`
+    : tipoPedido === 'Takeaway' ? `Takeaway${pagerParam ? ` · Pager ${pagerParam}` : ''}` : 'Delivery'
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden' }}>
 
-      {/* Modal cobro */}
+      {/* ═══ MODAL COBRO NORMAL ═══ */}
       {mostrarModalCobro && pedido && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
           <div style={{ background: '#fff', borderRadius: 18, padding: '28px', width: 400, maxWidth: '90vw' }}>
@@ -265,8 +307,6 @@ export default function Pedido() {
             <div style={{ fontSize: 13, color: '#A0786A', marginBottom: 20 }}>
               Total: <strong style={{ color: '#1A0A06' }}>{fmtPeso(pedido.total)}</strong>
             </div>
-
-            {/* Líneas de pago */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
               {pagos.map((p, i) => {
                 const totalCubierto = pagos.reduce((acc, x, xi) => xi !== i ? acc + (parseFloat(x.monto) || 0) : acc, 0)
@@ -281,14 +321,10 @@ export default function Pedido() {
                         </button>
                       ))}
                     </div>
-                    <input
-                      type="number"
-                      value={p.monto}
-                      onChange={e => actualizarPago(i, 'monto', e.target.value)}
+                    <input type="number" value={p.monto} onChange={e => actualizarPago(i, 'monto', e.target.value)}
                       onFocus={() => { if (!p.monto && restante > 0) actualizarPago(i, 'monto', restante.toFixed(0)) }}
                       placeholder="Monto"
-                      style={{ width: 90, padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }}
-                    />
+                      style={{ width: 90, padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }} />
                     {pagos.length > 1 && (
                       <button onClick={() => eliminarPago(i)} style={{ background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 7, padding: '7px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
                     )}
@@ -296,60 +332,145 @@ export default function Pedido() {
                 )
               })}
             </div>
-
-            {/* Agregar método */}
             {pagos.length < 3 && (
-              <button onClick={agregarMetodoPago}
-                style={{ width: '100%', background: 'none', border: '1px dashed #EDE0DB', borderRadius: 9, padding: '8px', fontSize: 12, color: '#A0786A', cursor: 'pointer', marginBottom: 16 }}>
+              <button onClick={agregarMetodoPago} style={{ width: '100%', background: 'none', border: '1px dashed #EDE0DB', borderRadius: 9, padding: '8px', fontSize: 12, color: '#A0786A', cursor: 'pointer', marginBottom: 16 }}>
                 + Agregar otro método de pago
               </button>
             )}
-
-            {/* Resumen */}
             {(() => {
               const totalPagado = pagos.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0)
               const diferencia  = totalPagado - parseFloat(pedido.total)
               return (
                 <div style={{ background: '#F8F5F4', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1A0A06', marginBottom: diferencia !== 0 ? 6 : 0 }}>
-                    <span>Total cobrado</span>
-                    <span style={{ fontWeight: 700 }}>{fmtPeso(totalPagado)}</span>
+                    <span>Total cobrado</span><span style={{ fontWeight: 700 }}>{fmtPeso(totalPagado)}</span>
                   </div>
                   {diferencia > 0 && pagos.some(p => p.metodo === 'efectivo') && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#166534', fontWeight: 600 }}>
-                      <span>Vuelto</span>
-                      <span>{fmtPeso(diferencia)}</span>
+                      <span>Vuelto</span><span>{fmtPeso(diferencia)}</span>
                     </div>
                   )}
                   {diferencia < 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444', fontWeight: 600 }}>
-                      <span>Falta cubrir</span>
-                      <span>{fmtPeso(Math.abs(diferencia))}</span>
+                      <span>Falta cubrir</span><span>{fmtPeso(Math.abs(diferencia))}</span>
                     </div>
                   )}
                 </div>
               )
             })()}
-
             {errorCobro && (
               <div style={{ fontSize: 12, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
                 {errorCobro}
               </div>
             )}
-
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => { setMostrarModalCobro(false); setPagos([{ metodo: 'efectivo', monto: '' }]); setErrorCobro('') }}
-                style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '11px', fontSize: 13, cursor: 'pointer' }}
-              >
+              <button onClick={() => { setMostrarModalCobro(false); setPagos([{ metodo: 'efectivo', monto: '' }]); setErrorCobro('') }}
+                style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '11px', fontSize: 13, cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button
-                onClick={handleCobrar}
-                disabled={imprimiendo}
-                style={{ flex: 2, background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: imprimiendo ? 'default' : 'pointer', opacity: imprimiendo ? 0.7 : 1 }}
-              >
+              <button onClick={handleCobrar} disabled={imprimiendo}
+                style={{ flex: 2, background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: imprimiendo ? 'default' : 'pointer', opacity: imprimiendo ? 0.7 : 1 }}>
                 {imprimiendo ? 'Procesando...' : '✓ Confirmar cobro'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL PAGO POR ÍTEM ═══ */}
+      {mostrarModalPorItem && datosPorItem && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: '#fff', borderRadius: 18, padding: '28px', width: 460, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06', marginBottom: 4 }}>Pago por ítem</div>
+            <div style={{ fontSize: 13, color: '#A0786A', marginBottom: 20 }}>Seleccioná los items que va a pagar esta persona</div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div style={{ flex: 1, background: '#F8F5F4', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#A0786A', marginBottom: 2 }}>Total pedido</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#1A0A06' }}>{fmtPeso(datosPorItem.total_pedido)}</div>
+              </div>
+              <div style={{ flex: 1, background: '#DCFCE7', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#A0786A', marginBottom: 2 }}>Ya pagado</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#166534' }}>{fmtPeso(datosPorItem.total_pagado)}</div>
+              </div>
+              <div style={{ flex: 1, background: '#FEF2EE', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#A0786A', marginBottom: 2 }}>Pendiente</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: WINE }}>{fmtPeso(datosPorItem.total_pendiente)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {datosPorItem.detalles.map(d => {
+                const seleccionado = !!itemsSeleccionados[d.detalle_id]
+                const pendiente    = d.cantidad_pendiente
+                if (pendiente === 0) return (
+                  <div key={d.detalle_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#F3F4F6', borderRadius: 10, opacity: 0.5 }}>
+                    <span style={{ fontSize: 16 }}>✓</span>
+                    <div style={{ flex: 1, fontSize: 13, color: '#6B7280' }}>{d.nombre}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>Pagado</div>
+                  </div>
+                )
+                return (
+                  <div key={d.detalle_id} onClick={() => toggleItem(d.detalle_id, pendiente)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', border: `2px solid ${seleccionado ? WINE : '#EDE0DB'}`, background: seleccionado ? WINE_LIGHT : '#fff', transition: 'all 0.15s' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${seleccionado ? WINE : '#EDE0DB'}`, background: seleccionado ? WINE : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {seleccionado && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>{d.nombre}</div>
+                      <div style={{ fontSize: 11, color: '#A0786A', marginTop: 1 }}>
+                        {d.cantidad_pagada > 0 ? `${pendiente} de ${d.cantidad_total} pendiente(s)` : `${d.cantidad_total} unidad(es)`}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(d.precio_unitario * pendiente)}</div>
+                      {seleccionado && pendiente > 1 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, justifyContent: 'flex-end' }}>
+                          <button onClick={e => { e.stopPropagation(); setItemsSeleccionados(prev => ({ ...prev, [d.detalle_id]: Math.max(1, (prev[d.detalle_id] || 1) - 1) })) }}
+                            style={{ width: 20, height: 20, borderRadius: 5, background: '#F5EDE8', border: 'none', fontSize: 12, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: WINE, minWidth: 14, textAlign: 'center' }}>{itemsSeleccionados[d.detalle_id] || pendiente}</span>
+                          <button onClick={e => { e.stopPropagation(); setItemsSeleccionados(prev => ({ ...prev, [d.detalle_id]: Math.min(pendiente, (prev[d.detalle_id] || 1) + 1) })) }}
+                            style={{ width: 20, height: 20, borderRadius: 5, background: WINE_LIGHT, border: 'none', fontSize: 12, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#A0786A', marginBottom: 8 }}>Método de pago</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['efectivo', 'tarjeta', 'qr'].map(m => (
+                  <button key={m} onClick={() => setMetodoPorItem(m)}
+                    style={{ flex: 1, padding: '9px', borderRadius: 9, cursor: 'pointer', border: `1px solid ${metodoPorItem === m ? WINE : '#EDE0DB'}`, background: metodoPorItem === m ? WINE_LIGHT : '#fff', color: metodoPorItem === m ? WINE : '#5C3A2E', fontSize: 12, fontWeight: metodoPorItem === m ? 600 : 400 }}>
+                    {m === 'efectivo' ? '💵 Efectivo' : m === 'tarjeta' ? '💳 Tarjeta' : '📱 QR'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {Object.keys(itemsSeleccionados).length > 0 && (
+              <div style={{ background: '#F8F5F4', borderRadius: 10, padding: '12px 14px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: '#A0786A' }}>A cobrar ahora</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: '#1A0A06' }}>
+                  {fmtPeso(Object.entries(itemsSeleccionados).reduce((acc, [detalleId, cant]) => {
+                    const d = datosPorItem.detalles.find(x => x.detalle_id === parseInt(detalleId))
+                    return acc + (d ? d.precio_unitario * cant : 0)
+                  }, 0))}
+                </span>
+              </div>
+            )}
+            {errorPorItem && (
+              <div style={{ fontSize: 12, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                {errorPorItem}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setMostrarModalPorItem(false); setDatosPorItem(null); setItemsSeleccionados({}) }}
+                style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '11px', fontSize: 13, cursor: 'pointer' }}>
+                Cerrar
+              </button>
+              <button onClick={handleCobrarPorItem} disabled={loadingPorItem || Object.keys(itemsSeleccionados).length === 0}
+                style={{ flex: 2, background: Object.keys(itemsSeleccionados).length > 0 ? WINE : '#E5D5D0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: Object.keys(itemsSeleccionados).length > 0 ? 'pointer' : 'default' }}>
+                {loadingPorItem ? 'Procesando...' : '✓ Cobrar seleccionados'}
               </button>
             </div>
           </div>
@@ -524,31 +645,29 @@ export default function Pedido() {
 
           {pedido ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-              {/* Marcar como listo — solo estado 2 */}
               {pedido.estado_id === 2 && (
                 <button onClick={handleAvanzarEstado} style={{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
                   Marcar como listo →
                 </button>
               )}
-
-              {/* Cobrar — estado 3 o Takeaway/Delivery en estado 2 o 3 */}
               {(pedido.estado_id === 3 || ((pedido.tipo_pedido === 'Takeaway' || pedido.tipo_pedido === 'Delivery') && pedido.estado_id === 2)) && (
-                <button
-                  onClick={() => setMostrarModalCobro(true)}
-                  disabled={imprimiendo}
-                  style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}
-                >
+                <button onClick={() => setMostrarModalCobro(true)} disabled={imprimiendo}
+                  style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
                   💳 Cobrar
                 </button>
               )}
-
+              {(pedido.estado_id === 2 || pedido.estado_id === 3) && detalles.length > 0 && (
+                <button onClick={handleAbrirPorItem} disabled={loadingPorItem}
+                  style={{ background: '#fff', color: WINE, border: `1px solid ${WINE}`, borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  👥 Pago por ítem
+                </button>
+              )}
               <button onClick={handleImprimirComanda} disabled={imprimiendo}
                 style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}>
                 🖨 Reimprimir comanda
               </button>
-
-              <button onClick={handleCancelar} style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%' }}>
+              <button onClick={handleCancelar}
+                style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%' }}>
                 Cancelar pedido
               </button>
             </div>
