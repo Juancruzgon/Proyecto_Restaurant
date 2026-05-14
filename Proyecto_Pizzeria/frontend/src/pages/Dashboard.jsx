@@ -7,7 +7,7 @@ const ESTADO_COCINA = 2
 const ESTADO_LISTO  = 3
 const ESTADO_PAGADO = 4
 
-const WINE = '#7C2D12'
+const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
 
 const estadoLabel = {
@@ -35,31 +35,42 @@ export default function Dashboard() {
   const horaActual = new Date().getHours()
   const saludo     = horaActual < 12 ? 'Buenos días' : horaActual < 19 ? 'Buenas tardes' : 'Buenas noches'
 
-  const [pedidos,         setPedidos]         = useState([])
-  const [mesas,           setMesas]           = useState([])
-  const [loading,         setLoading]         = useState(true)
-  const [recordatorios,   setRecordatorios]   = useState([])
-  const [mostrarRec,      setMostrarRec]      = useState(true)
-  const [nuevoTitulo,     setNuevoTitulo]     = useState('')
-  const [nuevoDesc,       setNuevoDesc]       = useState('')
-  const [mostrarFormRec,  setMostrarFormRec]  = useState(false)
+  const [pedidos,        setPedidos]        = useState([])
+  const [mesas,          setMesas]          = useState([])
+  const [caja,           setCaja]           = useState(null)
+  const [loading,        setLoading]        = useState(true)
+  const [recordatorios,  setRecordatorios]  = useState([])
+  const [mostrarRec,     setMostrarRec]     = useState(true)
+  const [nuevoTitulo,    setNuevoTitulo]    = useState('')
+  const [nuevoDesc,      setNuevoDesc]      = useState('')
+  const [mostrarFormRec, setMostrarFormRec] = useState(false)
+  
 
-  const cargar = useCallback(async () => {
-    try {
-      const [resPedidos, resMesas, resRec] = await Promise.all([
-        api.get('/pedidos/'),
-        api.get('/mesas/'),
-        api.get('/recordatorios/'),
-      ])
-      setPedidos(resPedidos.data.filter(p => p.activo))
-      setMesas(resMesas.data.filter(m => m.activo))
-      setRecordatorios(resRec.data)
-    } catch (e) {
-      console.error('Error cargando dashboard:', e)
-    } finally {
-      setLoading(false)
+const cargar = useCallback(async () => {
+  try {
+    const [resPedidos, resMesas, resRec, resCaja] = await Promise.all([
+      api.get('/pedidos/'),
+      api.get('/mesas/'),
+      api.get('/recordatorios/'),
+      api.get('/caja/activa'),
+    ])
+    const cajaData = resCaja.data
+    setPedidos(resPedidos.data.filter(p => p.activo))
+    setMesas(resMesas.data.filter(m => m.activo))
+    setRecordatorios(resRec.data)
+    setCaja(cajaData)
+
+    // Traer pagados del turno
+    if (cajaData?.id) {
+      const resPagados = await api.get(`/pedidos/?caja_id=${cajaData.id}&pagados=true`)
+      setPedidosPagados(resPagados.data)
     }
-  }, [])
+  } catch (e) {
+    console.error('Error cargando dashboard:', e)
+  } finally {
+    setLoading(false)
+  }
+}, [])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -71,9 +82,7 @@ export default function Dashboard() {
   const handleCrearRecordatorio = async () => {
     if (!nuevoTitulo.trim()) return
     await api.post('/recordatorios/', { titulo: nuevoTitulo, descripcion: nuevoDesc || null })
-    setNuevoTitulo('')
-    setNuevoDesc('')
-    setMostrarFormRec(false)
+    setNuevoTitulo(''); setNuevoDesc(''); setMostrarFormRec(false)
     const res = await api.get('/recordatorios/')
     setRecordatorios(res.data)
   }
@@ -81,8 +90,15 @@ export default function Dashboard() {
   const pedidosAbiertos = pedidos.filter(p => p.estado_id !== ESTADO_PAGADO)
   const listosCobrar    = pedidos.filter(p => p.estado_id === ESTADO_LISTO)
   const mesasOcupadas   = mesas.filter(m => m.estado_id === MESA_OCUPADA)
-  const ventasHoy       = pedidos.filter(p => p.estado_id === ESTADO_PAGADO).reduce((acc, p) => acc + Number(p.total), 0)
-  const pedidosPagados  = pedidos.filter(p => p.estado_id === ESTADO_PAGADO).length
+
+  // Ventas del turno activo (caja abierta) o del día si no hay caja
+  const [pedidosPagados, setPedidosPagados] = useState([])
+  const pedidosTurno   = caja
+    ? pedidosPagados.filter(p => p.caja_id === caja.id)
+    : pedidosPagados
+
+  const ventasTurno  = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
+  const labelVentas  = caja ? 'Ventas del turno' : 'Ventas hoy'
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#A0786A', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>
@@ -101,6 +117,11 @@ export default function Dashboard() {
           </div>
           <div style={{ fontSize: 13, color: '#A0786A', marginTop: 3 }}>
             {new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            {caja && (
+              <span style={{ marginLeft: 10, fontSize: 11, fontWeight: 600, color: '#166534', background: '#DCFCE7', borderRadius: 20, padding: '2px 8px' }}>
+                🟢 Caja abierta desde {new Date(caja.fecha_apertura).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
         </div>
         <button
@@ -125,17 +146,11 @@ export default function Dashboard() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {isAdmin && mostrarRec && (
-                <button
-                  onClick={() => setMostrarFormRec(v => !v)}
-                  style={{ fontSize: 12, fontWeight: 600, color: WINE, background: 'none', border: 'none', cursor: 'pointer' }}
-                >
+                <button onClick={() => setMostrarFormRec(v => !v)} style={{ fontSize: 12, fontWeight: 600, color: WINE, background: 'none', border: 'none', cursor: 'pointer' }}>
                   + Nuevo
                 </button>
               )}
-              <button
-                onClick={() => setMostrarRec(v => !v)}
-                style={{ fontSize: 12, color: '#A0786A', background: 'none', border: 'none', cursor: 'pointer' }}
-              >
+              <button onClick={() => setMostrarRec(v => !v)} style={{ fontSize: 12, color: '#A0786A', background: 'none', border: 'none', cursor: 'pointer' }}>
                 {mostrarRec ? 'Cerrar ✕' : 'Ver ▾'}
               </button>
             </div>
@@ -143,31 +158,18 @@ export default function Dashboard() {
 
           {mostrarRec && (
             <div>
-              {/* Formulario nuevo recordatorio */}
               {isAdmin && mostrarFormRec && (
                 <div style={{ background: '#fff', border: `1px solid ${WINE}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
-                  <input
-                    autoFocus
-                    value={nuevoTitulo}
-                    onChange={e => setNuevoTitulo(e.target.value)}
-                    placeholder="Título del recordatorio"
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 8 }}
-                  />
-                  <textarea
-                    value={nuevoDesc}
-                    onChange={e => setNuevoDesc(e.target.value)}
-                    placeholder="Descripción (opcional)"
-                    rows={2}
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', resize: 'none', marginBottom: 10 }}
-                  />
+                  <input autoFocus value={nuevoTitulo} onChange={e => setNuevoTitulo(e.target.value)} placeholder="Título del recordatorio"
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 8 }} />
+                  <textarea value={nuevoDesc} onChange={e => setNuevoDesc(e.target.value)} placeholder="Descripción (opcional)" rows={2}
+                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', resize: 'none', marginBottom: 10 }} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={handleCrearRecordatorio} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 8, padding: '8px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Guardar</button>
                     <button onClick={() => { setMostrarFormRec(false); setNuevoTitulo(''); setNuevoDesc('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 8, padding: '8px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
                   </div>
                 </div>
               )}
-
-              {/* Lista recordatorios */}
               {recordatorios.length === 0 ? (
                 <div style={{ fontSize: 13, color: '#C09080', padding: '8px 0' }}>No hay recordatorios pendientes</div>
               ) : (
@@ -179,10 +181,7 @@ export default function Dashboard() {
                         {r.descripcion && <div style={{ fontSize: 12, color: '#A0786A', marginTop: 2 }}>{r.descripcion}</div>}
                         <div style={{ fontSize: 11, color: '#C09080', marginTop: 3 }}>{r.fecha}</div>
                       </div>
-                      <button
-                        onClick={() => handleMarcarLeido(r.id)}
-                        style={{ fontSize: 11, fontWeight: 600, color: '#166534', background: '#DCFCE7', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                      >
+                      <button onClick={() => handleMarcarLeido(r.id)} style={{ fontSize: 11, fontWeight: 600, color: '#166534', background: '#DCFCE7', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         ✓ Leído
                       </button>
                     </div>
@@ -218,18 +217,20 @@ export default function Dashboard() {
 
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, padding: '24px 26px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ fontSize: 13, color: '#A0786A', fontWeight: 500 }}>Ventas hoy</span>
+            <span style={{ fontSize: 13, color: '#A0786A', fontWeight: 500 }}>{labelVentas}</span>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>📈</div>
           </div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: '#1A0A06', letterSpacing: '-1px', lineHeight: 1 }}>{fmtPeso(ventasHoy)}</div>
-          <div style={{ fontSize: 12, color: '#A0786A', marginTop: 10 }}>{pedidosPagados} pedido{pedidosPagados !== 1 ? 's' : ''} cerrado{pedidosPagados !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#1A0A06', letterSpacing: '-1px', lineHeight: 1 }}>{fmtPeso(ventasTurno)}</div>
+          <div style={{ fontSize: 12, color: '#A0786A', marginTop: 10 }}>
+            {pedidosPagados.length} pedido{pedidosPagados.length !== 1 ? 's' : ''} cerrado{pedidosPagados.length !== 1 ? 's' : ''}
+            {!caja && <span style={{ marginLeft: 4, color: '#EF4444', fontSize: 10 }}>· Caja cerrada</span>}
+          </div>
         </div>
       </div>
 
       {/* Dos paneles */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
 
-        {/* Pedidos abiertos */}
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ padding: '16px 22px', borderBottom: '1px solid #EDE0DB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>Pedidos abiertos</span>
@@ -269,7 +270,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Listos para cobrar */}
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ padding: '16px 22px', borderBottom: '1px solid #EDE0DB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>Listos para cobrar</span>

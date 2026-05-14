@@ -16,6 +16,7 @@ from models.estado import EstadoMesa, EstadoPedido
 from models.gestor import GestorNegocio, GestorImpresora
 from models.recordatorio import Recordatorio
 from models.receta import RecetaProducto
+from models.caja import Caja
 
 
 def create_db_and_tables():

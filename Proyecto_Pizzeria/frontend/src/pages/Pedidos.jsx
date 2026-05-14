@@ -1,23 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getPedidos, getUsuarios } from '../services/api'
+import { getPedidos, getUsuarios, getCajaActiva } from '../services/api'
 
 const WINE = '#7C2D12'
 
 const ESTADOS = {
-  1: { label: 'Creado',       bg: '#FEF9C3', color: '#854D0E' },
-  2: { label: 'En cocina',    bg: '#FEE2E2', color: '#991B1B' },
-  3: { label: 'Listo',        bg: '#DCFCE7', color: '#166534' },
-  4: { label: 'Pagado',       bg: '#F3F4F6', color: '#6B7280' },
+  2: { label: 'En cocina', bg: '#FEE2E2', color: '#991B1B' },
+  3: { label: 'Listo',     bg: '#DCFCE7', color: '#166534' },
+  4: { label: 'Pagado',    bg: '#F3F4F6', color: '#6B7280' },
 }
-
-const FILTROS = [
-  { id: null, label: 'Todos'     },
-  { id: 1,    label: 'Creados'   },
-  { id: 2,    label: 'En cocina' },
-  { id: 3,    label: 'Listos'    },
-  { id: 4,    label: 'Pagados'   },
-]
 
 function fmtPeso(val) {
   return '$' + Number(val).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -28,40 +19,71 @@ function fmtHora(h) {
 }
 
 export default function Pedidos() {
-  const navigate  = useNavigate()
-  const [pedidos,   setPedidos]   = useState([])
-  const [usuarios,  setUsuarios]  = useState([])
-  const [filtro,    setFiltro]    = useState(null)
-  const [loading,   setLoading]   = useState(true)
+  const navigate = useNavigate()
 
-  const cargar = () => {
-    Promise.all([getPedidos(), getUsuarios()]).then(([p, u]) => {
-      setPedidos(p)
+  const [pedidosActivos, setPedidosActivos] = useState([])
+  const [pedidosPagados, setPedidosPagados] = useState([])
+  const [usuarios,       setUsuarios]       = useState([])
+  const [caja,           setCaja]           = useState(null)
+  const [filtro,         setFiltro]         = useState(null) // null=todos activos, 2=cocina, 3=listo, 4=pagados
+  const [loading,        setLoading]        = useState(true)
+
+  const cargar = useCallback(async () => {
+    try {
+      const [u, cajaData] = await Promise.all([
+        getUsuarios(),
+        getCajaActiva(),
+      ])
       setUsuarios(u)
+      setCaja(cajaData)
+
+      // Pedidos activos
+      const activos = await getPedidos()
+      setPedidosActivos(activos)
+
+      // Pedidos pagados del turno
+      if (cajaData?.id) {
+        const pagados = await getPedidos({ caja_id: cajaData.id, pagados: true })
+        setPedidosPagados(pagados)
+      } else {
+        const pagados = await getPedidos({ pagados: true })
+        setPedidosPagados(pagados)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
       setLoading(false)
-    })
-  }
+    }
+  }, [])
 
   useEffect(() => {
     cargar()
     const ws = new WebSocket('ws://localhost:8000/ws')
     ws.onmessage = () => cargar()
     return () => ws.close()
-  }, [])
+  }, [cargar])
 
   const getMozo = (usuarioId) => {
     const u = usuarios.find(u => u.id === usuarioId)
-    return u ? `${u.nombre} ${u.apellido}` : null
+    return u ? `${u.nombre}` : null
   }
 
-  const pedidosFiltrados = filtro === null
-    ? pedidos
-    : pedidos.filter(p => p.estado_id === filtro)
+  const todosPedidos = [...pedidosActivos, ...pedidosPagados]
 
-  const counts = FILTROS.map(f => ({
-    ...f,
-    count: f.id === null ? pedidos.length : pedidos.filter(p => p.estado_id === f.id).length
-  }))
+  const pedidosFiltrados = filtro === null
+    ? pedidosActivos
+    : filtro === 4
+      ? pedidosPagados
+      : pedidosActivos.filter(p => p.estado_id === filtro)
+
+  const FILTROS = [
+    { id: null, label: 'Activos',   count: pedidosActivos.length },
+    { id: 2,    label: 'En cocina', count: pedidosActivos.filter(p => p.estado_id === 2).length },
+    { id: 3,    label: 'Listos',    count: pedidosActivos.filter(p => p.estado_id === 3).length },
+    { id: 4,    label: caja ? 'Pagados del turno' : 'Pagados', count: pedidosPagados.length },
+  ]
+
+  const totalTurno = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
 
   return (
     <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }}>
@@ -71,24 +93,21 @@ export default function Pedidos() {
         <div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Pedidos</div>
           <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>
-            {pedidos.filter(p => p.estado_id !== 4).length} activos · {pedidos.filter(p => p.estado_id === 4).length} cerrados hoy
+            {pedidosActivos.length} activos · {pedidosPagados.length} pagados
+            {caja && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: '#166534', background: '#DCFCE7', borderRadius: 20, padding: '1px 8px' }}>turno activo</span>}
           </div>
         </div>
         <button
           onClick={() => navigate('/nuevo-pedido')}
-          style={{
-            background: WINE, color: '#fff', border: 'none',
-            borderRadius: 10, padding: '8px 18px',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}
+          style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
         >
           + Nuevo pedido
         </button>
       </div>
 
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {counts.map(f => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {FILTROS.map(f => (
           <button
             key={f.id ?? 'all'}
             onClick={() => setFiltro(f.id)}
@@ -99,7 +118,6 @@ export default function Pedidos() {
               borderRadius: 20, padding: '6px 14px',
               fontSize: 12, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'all 0.15s',
             }}
           >
             {f.label}
@@ -114,53 +132,54 @@ export default function Pedidos() {
         ))}
       </div>
 
+      {/* Resumen turno cuando se ve pagados */}
+      {filtro === 4 && pedidosPagados.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 12, padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: '#A0786A' }}>Total del turno</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: WINE }}>{fmtPeso(totalTurno)}</span>
+        </div>
+      )}
+
       {/* Lista */}
       {loading ? (
         <div style={{ textAlign: 'center', color: '#A0786A', fontSize: 13, padding: '48px 0' }}>Cargando...</div>
       ) : pedidosFiltrados.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '48px 0' }}>
-          No hay pedidos {filtro !== null ? `con estado "${ESTADOS[filtro]?.label}"` : ''}
+          No hay pedidos en este filtro
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {pedidosFiltrados.map(p => {
-            const est   = ESTADOS[p.estado_id] || ESTADOS[1]
-            const mozo  = getMozo(p.usuario_id)
+            const est  = ESTADOS[p.estado_id] || ESTADOS[2]
+            const mozo = getMozo(p.usuario_id)
             return (
               <div
                 key={p.id}
-                onClick={() => p.mesa_id && navigate(`/pedido/${p.mesa_id}`)}
+                onClick={() => p.mesa_id && p.estado_id !== 4 && navigate(`/pedido/${p.mesa_id}`)}
                 style={{
-                  background: '#fff',
-                  border: '1px solid #EDE0DB',
-                  borderRadius: 14,
-                  padding: '14px 20px',
+                  background: '#fff', border: '1px solid #EDE0DB',
+                  borderRadius: 14, padding: '14px 20px',
                   display: 'flex', alignItems: 'center', gap: 14,
-                  cursor: p.mesa_id ? 'pointer' : 'default',
-                  transition: 'box-shadow 0.15s',
+                  cursor: p.mesa_id && p.estado_id !== 4 ? 'pointer' : 'default',
                 }}
-                onMouseEnter={e => { if (p.mesa_id) e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,45,18,0.08)' }}
+                onMouseEnter={e => { if (p.mesa_id && p.estado_id !== 4) e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,45,18,0.08)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}
               >
-                {/* Avatar */}
                 <div style={{
                   width: 44, height: 44, borderRadius: 11,
-                  background: p.mesa_id ? '#FEF2EE' : '#F3F4F6',
+                  background: p.estado_id === 4 ? '#F3F4F6' : '#FEF2EE',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700,
-                  color: p.mesa_id ? WINE : '#6B7280',
+                  color: p.estado_id === 4 ? '#6B7280' : WINE,
                   flexShrink: 0,
                 }}>
                   {p.mesa_id ? `M${p.mesa_id}` : (p.tipo_pedido || '').slice(0, 2).toUpperCase()}
                 </div>
 
-                {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>
                     {p.mesa_id ? `Mesa ${p.mesa_id}` : p.tipo_pedido}
-                    <span style={{ fontSize: 12, fontWeight: 400, color: '#A0786A', marginLeft: 8 }}>
-                      #{p.nro_pedido}
-                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 400, color: '#A0786A', marginLeft: 8 }}>#{p.nro_pedido}</span>
                   </div>
                   <div style={{ fontSize: 12, color: '#A0786A', marginTop: 2, display: 'flex', gap: 10 }}>
                     <span>{fmtHora(p.hora)}</span>
@@ -168,17 +187,11 @@ export default function Pedidos() {
                   </div>
                 </div>
 
-                {/* Total + estado */}
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#1A0A06', marginBottom: 4 }}>
                     {fmtPeso(p.total)}
                   </div>
-                  <div style={{
-                    display: 'inline-block',
-                    fontSize: 11, fontWeight: 600,
-                    padding: '2px 10px', borderRadius: 20,
-                    background: est.bg, color: est.color,
-                  }}>
+                  <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: est.bg, color: est.color }}>
                     {est.label}
                   </div>
                 </div>

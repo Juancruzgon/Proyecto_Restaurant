@@ -122,8 +122,12 @@ export const crearPedido = async (mesaId, usuarioId, tipoPedido) => {
   
 }
 
-export const getPedidos = async () => {
-  const response = await api.get('/pedidos/')
+export const getPedidos = async (params = {}) => {
+  const query = new URLSearchParams()
+  if (params.caja_id) query.append('caja_id', params.caja_id)
+  if (params.pagados) query.append('pagados', 'true')
+  const url = `/pedidos/${query.toString() ? '?' + query.toString() : ''}`
+  const response = await api.get(url)
   return response.data
 }
 
@@ -296,5 +300,24 @@ export const getInsumos = async () => {
 }
 export const agregarCompra = async (insumoId, cantidad, monto) => {
   const response = await api.post(`/insumos/${insumoId}/compra`, { cantidad, monto })
+  return response.data
+}
+export const getCajaActiva = async () => {
+  const response = await api.get('/caja/activa')
+  return response.data
+}
+
+export const abrirCaja = async () => {
+  const response = await api.post('/caja/abrir')
+  return response.data
+}
+
+export const cerrarCaja = async () => {
+  const response = await api.put('/caja/cerrar')
+  return response.data
+}
+
+export const getHistorialCajas = async () => {
+  const response = await api.get('/caja/historial')
   return response.data
 }

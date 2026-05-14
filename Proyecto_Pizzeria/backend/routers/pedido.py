@@ -1,8 +1,9 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 from database import get_session
 from models.usuario import Usuario
+from models.caja import Caja
 from schemas.pedido import PedidoCreate, PedidoModify, DetallePedidoCreate, DetallePedidoModifyNota
 from crud.pedido import (
     obtener_pedidos as crud_obtener_pedidos,
@@ -30,8 +31,14 @@ router = APIRouter(
 )
 
 @router.get("/")
-def obtener_pedidos(mesa_id: int = None, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    return crud_obtener_pedidos(session, mesa_id)
+def obtener_pedidos(
+    mesa_id: int = None,
+    caja_id: int = None,
+    pagados: bool = False,
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user)
+):
+    return crud_obtener_pedidos(session, mesa_id=mesa_id, caja_id=caja_id, pagados=pagados)
 
 @router.post("/")
 async def crear_pedido(pedido: PedidoCreate, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):

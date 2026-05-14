@@ -5,6 +5,7 @@ from models.mesa import Mesa
 from models.producto import Producto
 from models.insumo import Insumo, MovimientoStock
 from models.receta import RecetaProducto
+from models.caja import Caja
 import schemas
 from fastapi import HTTPException
 
@@ -57,21 +58,40 @@ def descontar_stock_pedido(pedido_id: int, detalles: list, session: Session):
 
 # ── Pedidos ──────────────────────────────────────────────────
 
-def obtener_pedidos(session: Session, mesa_id: int = None):
-    statement = select(Pedido).where(Pedido.activo == True)
-    if mesa_id:
-        statement = statement.where(Pedido.mesa_id == mesa_id)
+def obtener_pedidos(session: Session, mesa_id: int = None, caja_id: int = None, pagados: bool = False):
+    if pagados:
+        # Pedidos pagados (activo=False, estado_id=4)
+        statement = select(Pedido).where(Pedido.estado_id == 4)
+        if caja_id:
+            statement = statement.where(Pedido.caja_id == caja_id)
+    else:
+        statement = select(Pedido).where(Pedido.activo == True)
+        if mesa_id:
+            statement = statement.where(Pedido.mesa_id == mesa_id)
+        if caja_id:
+            statement = statement.where(Pedido.caja_id == caja_id)
     return session.exec(statement).all()
 
-
 def crear_pedido(pedido: schemas.PedidoCreate, session: Session):
+    from models.caja import Caja
+
+    # 1. Calcular nro_pedido
     ultimo_pedido = session.exec(
         select(Pedido)
         .where(Pedido.fecha == date.today())
         .order_by(Pedido.nro_pedido.desc())
     ).first()
     nro_pedido = (ultimo_pedido.nro_pedido + 1) if ultimo_pedido else 1
+
+    # 2. Crear pedido
     nuevo_pedido = Pedido(**pedido.model_dump(), estado_id=2, nro_pedido=nro_pedido)
+
+    # 3. Asignar caja activa si existe
+    caja_activa = session.exec(select(Caja).where(Caja.activo == True)).first()
+    if caja_activa:
+        nuevo_pedido.caja_id = caja_activa.id
+
+    # 4. Validar y ocupar mesa
     if pedido.mesa_id:
         mesa = session.exec(select(Mesa).where(Mesa.id == pedido.mesa_id)).first()
         if not mesa:
@@ -80,11 +100,11 @@ def crear_pedido(pedido: schemas.PedidoCreate, session: Session):
             raise HTTPException(status_code=400, detail="La mesa ya está ocupada")
         mesa.estado_id = 2
         session.add(mesa)
+
     session.add(nuevo_pedido)
     session.commit()
     session.refresh(nuevo_pedido)
     return nuevo_pedido
-
 
 def modificar_pedido(pedido_id: int, pedido: schemas.PedidoModify, session: Session):
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
