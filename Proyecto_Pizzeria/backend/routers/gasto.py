@@ -12,8 +12,8 @@ router = APIRouter(
 )
 
 @router.get("/")
-def obtener_gastos(session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    return gasto_crud.obtener_gastos(session)
+def obtener_gastos(categoria_id: int = None, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    return gasto_crud.obtener_gastos(session, categoria_id)
 
 @router.post("/")
 def crear_gasto(gasto: GastoCreate, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):

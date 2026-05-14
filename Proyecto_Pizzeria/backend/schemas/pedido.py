@@ -17,3 +17,7 @@ class PedidoModify(pydantic.BaseModel):
 class DetallePedidoCreate(pydantic.BaseModel):
     producto_id: int
     cantidad: int
+    nota: Optional[str] = None
+
+class DetallePedidoModifyNota(pydantic.BaseModel):
+    nota: Optional[str] = None

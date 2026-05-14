@@ -9,3 +9,5 @@ class SalonCreate(pydantic.BaseModel):
 class SalonModify(pydantic.BaseModel):
     nombre: Optional[str] = None
     descripcion: Optional[str] = None
+    ancho: Optional[float] = None
+    alto: Optional[float] = None

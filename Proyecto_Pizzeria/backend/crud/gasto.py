@@ -1,11 +1,14 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.gasto import Gasto
+from fastapi import HTTPException
+import schemas
 
-def obtener_gastos(session: Session):
+def obtener_gastos(session: Session, categoria_id: int = None):
     statement = select(Gasto)
-    resultados = session.exec(statement)
-    return resultados.all()
+    if categoria_id:
+        statement = statement.where(Gasto.categoria_id == categoria_id)
+    return session.exec(statement).all()
 
 def crear_gasto(gasto: schemas.GastoCreate, session: Session):
     nuevo_gasto = Gasto(**gasto.model_dump())

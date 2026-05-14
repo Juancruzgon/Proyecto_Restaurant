@@ -12,6 +12,7 @@ const navItems = [
   { to: '/insumos', icon: '📦', label: 'Insumos', adminOnly: true },
   { to: '/gastos', icon: '💰', label: 'Gastos', adminOnly: true },
   { to: '/usuarios', icon: '👥', label: 'Usuarios', adminOnly: true },
+  { to: '/cocina', icon: '👨‍🍳', label: 'Cocina', adminOnly: true },
 ]
 
 export default function Layout({ children }) {

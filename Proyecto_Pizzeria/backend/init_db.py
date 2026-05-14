@@ -14,6 +14,9 @@ from models.categoria_insumo import CategoriaInsumo
 from models.promocion import Promocion
 from models.estado import EstadoMesa, EstadoPedido
 from models.gestor import GestorNegocio, GestorImpresora
+from models.recordatorio import Recordatorio
+from models.receta import RecetaProducto
+
 
 def create_db_and_tables():
     print("Conectando con la base de datos y creando tablas...")

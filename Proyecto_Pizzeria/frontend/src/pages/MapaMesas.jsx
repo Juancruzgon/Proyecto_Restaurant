@@ -4,65 +4,82 @@ import api, { getMesas, getSalones, eliminarMesa } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
-const MESA_W     = 88
-const MESA_H     = 88
+const MESA_MIN   = 72
+const MESA_DEF   = 88
 const GRID_GAP   = 24
 const COLS       = 6
 
-// Posición inicial automática para mesas sin pos_x/pos_y
 function posInicial(index) {
   const col = index % COLS
   const row = Math.floor(index / COLS)
   return {
-    x: GRID_GAP + col * (MESA_W + GRID_GAP),
-    y: GRID_GAP + row * (MESA_H + GRID_GAP),
+    x: GRID_GAP + col * (MESA_DEF + GRID_GAP),
+    y: GRID_GAP + row * (MESA_DEF + GRID_GAP),
   }
 }
 
 function colorMesa(estado_id) {
   if (estado_id === 1) return { bg: '#F0FDF4', border: '#86EFAC', text: '#166534', dot: '#22C55E' }
-  if (estado_id === 2) return { bg: WINE_LIGHT, border: '#FCA5A5', text: WINE,     dot: WINE     }
-  return                       { bg: '#F3F4F6', border: '#D1D5DB', text: '#6B7280', dot: '#9CA3AF' }
+  if (estado_id === 2) return { bg: WINE_LIGHT, border: '#FCA5A5', text: WINE, dot: WINE }
+  return { bg: '#F3F4F6', border: '#D1D5DB', text: '#6B7280', dot: '#9CA3AF' }
 }
 
 export default function MapaMesas() {
-  const [searchParams]   = useSearchParams()
-  const modoNuevo        = searchParams.get('modo') === 'nuevo'
-  const navigate         = useNavigate()
-  const rolId            = localStorage.getItem('rol_id')
-  const isAdmin          = rolId === '1'
+  const [searchParams] = useSearchParams()
+  const modoNuevo      = searchParams.get('modo') === 'nuevo'
+  const navigate       = useNavigate()
+  const rolId          = localStorage.getItem('rol_id')
+  const isAdmin        = rolId === '1'
 
-  const [mesas,        setMesas]        = useState([])
-  const [salones,      setSalones]      = useState([])
-  const [salonActivo,  setSalonActivo]  = useState(null)
-  const [modoEdicion,  setModoEdicion]  = useState(false)
-  const [mesaHover,    setMesaHover]    = useState(null)
+  const [mesas,       setMesas]       = useState([])
+  const [salones,     setSalones]     = useState([])
+  const [salonActivo, setSalonActivo] = useState(null)
+  const [modoEdicion, setModoEdicion] = useState(false)
+  const [mesaHover,   setMesaHover]   = useState(null)
 
-  // Drag state
-  const dragging   = useRef(null)  // { mesaId, offsetX, offsetY }
-  const canvasRef  = useRef(null)
-  const posiciones = useRef({})    // { [mesaId]: { x, y } } — local durante drag
+  // Tamaño del canvas (salón)
+  const [canvasW, setCanvasW] = useState(1200)
+  const [canvasH, setCanvasH] = useState(600)
 
-  // ── Carga ────────────────────────────────────────────────
+  const dragging      = useRef(null)
+  const resizingMesa  = useRef(null)
+  const resizingSalon = useRef(null) // { startX, startY, startW, startH }
+  const canvasRef     = useRef(null)
+  const posiciones    = useRef({})
+  const tamanios      = useRef({})
+
   const cargarMesas = useCallback(async (salon_id) => {
     const data = await getMesas(salon_id)
     setMesas(data)
-    // Inicializar posiciones locales
     data.forEach((m, i) => {
       if (posiciones.current[m.id] === undefined) {
         posiciones.current[m.id] = (m.pos_x != null && m.pos_y != null)
           ? { x: m.pos_x, y: m.pos_y }
           : posInicial(i)
       }
+      if (tamanios.current[m.id] === undefined) {
+        tamanios.current[m.id] = { w: m.ancho || MESA_DEF, h: m.alto || MESA_DEF }
+      }
     })
+  }, [])
+
+  const cargarSalon = useCallback((salonId, salonesData) => {
+    const salon = salonesData.find(s => s.id === salonId)
+    if (salon) {
+      setCanvasW(salon.ancho || 1200)
+      setCanvasH(salon.alto  || 600)
+    }
   }, [])
 
   useEffect(() => {
     getSalones().then(data => {
       setSalones(data)
-      if (data.length > 0) setSalonActivo(data[0].id)
+      if (data.length > 0) {
+        setSalonActivo(data[0].id)
+        cargarSalon(data[0].id, data)
+      }
     })
-  }, [])
+  }, [cargarSalon])
 
   useEffect(() => {
     if (salonActivo !== null) cargarMesas(salonActivo)
@@ -74,9 +91,10 @@ export default function MapaMesas() {
     return () => ws.close()
   }, [salonActivo, cargarMesas])
 
-  // ── Drag handlers ────────────────────────────────────────
+  // ── Drag mesa ────────────────────────────────────────────
   const onMouseDown = (e, mesa) => {
     if (!modoEdicion) return
+    if (e.target.dataset.resize) return
     e.preventDefault()
     const rect = canvasRef.current.getBoundingClientRect()
     const pos  = posiciones.current[mesa.id] || posInicial(0)
@@ -87,38 +105,88 @@ export default function MapaMesas() {
     }
   }
 
-  const onMouseMove = (e) => {
-    if (!dragging.current) return
-    const rect = canvasRef.current.getBoundingClientRect()
-    const { mesaId, offsetX, offsetY } = dragging.current
-    const x = Math.max(0, e.clientX - rect.left - offsetX)
-    const y = Math.max(0, e.clientY - rect.top  - offsetY)
-    posiciones.current[mesaId] = { x, y }
-    // Mover el elemento directamente en el DOM para performance
-    const el = document.getElementById(`mesa-${mesaId}`)
-    if (el) { el.style.left = x + 'px'; el.style.top = y + 'px' }
-  }
-
-  const onMouseUp = async () => {
-    if (!dragging.current) return
-    const { mesaId } = dragging.current
-    dragging.current = null
-    const { x, y } = posiciones.current[mesaId]
-    try {
-      await api.put(`/mesas/${mesaId}/posicion`, { pos_x: x, pos_y: y })
-    } catch (e) {
-      console.error('Error guardando posición:', e)
+  // ── Resize mesa ──────────────────────────────────────────
+  const onResizeMesaDown = (e, mesa) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const tam = tamanios.current[mesa.id] || { w: MESA_DEF, h: MESA_DEF }
+    resizingMesa.current = {
+      mesaId: mesa.id,
+      startX: e.clientX, startY: e.clientY,
+      startW: tam.w,     startH: tam.h,
     }
   }
 
-  // ── Acciones ─────────────────────────────────────────────
+  // ── Resize salón ─────────────────────────────────────────
+  const onResizeSalonDown = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    resizingSalon.current = {
+      startX: e.clientX, startY: e.clientY,
+      startW: canvasW,   startH: canvasH,
+    }
+  }
+
+  // ── Mouse move global ────────────────────────────────────
+  const onMouseMove = (e) => {
+    if (dragging.current && !resizingMesa.current && !resizingSalon.current) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const { mesaId, offsetX, offsetY } = dragging.current
+      const tam = tamanios.current[mesaId] || { w: MESA_DEF, h: MESA_DEF }
+      const x = Math.min(Math.max(0, e.clientX - rect.left - offsetX), canvasW - tam.w)
+      const y = Math.min(Math.max(0, e.clientY - rect.top  - offsetY), canvasH - tam.h)
+      posiciones.current[mesaId] = { x, y }
+      const el = document.getElementById(`mesa-${mesaId}`)
+      if (el) { el.style.left = x + 'px'; el.style.top = y + 'px' }
+    }
+
+    if (resizingMesa.current) {
+      const { mesaId, startX, startY, startW, startH } = resizingMesa.current
+      const w = Math.max(MESA_MIN, startW + e.clientX - startX)
+      const h = Math.max(MESA_MIN, startH + e.clientY - startY)
+      tamanios.current[mesaId] = { w, h }
+      const el = document.getElementById(`mesa-${mesaId}`)
+      if (el) { el.style.width = w + 'px'; el.style.height = h + 'px' }
+    }
+
+    if (resizingSalon.current) {
+      const { startX, startY, startW, startH } = resizingSalon.current
+      const newW = Math.max(400, startW + e.clientX - startX)
+      const newH = Math.max(300, startH + e.clientY - startY)
+      setCanvasW(newW)
+      setCanvasH(newH)
+    }
+  }
+
+  // ── Mouse up — guardar ───────────────────────────────────
+  const onMouseUp = async () => {
+    if (dragging.current) {
+      const { mesaId } = dragging.current
+      dragging.current = null
+      const { x, y } = posiciones.current[mesaId]
+      try { await api.put(`/mesas/${mesaId}/posicion`, { pos_x: x, pos_y: y }) }
+      catch (e) { console.error(e) }
+    }
+
+    if (resizingMesa.current) {
+      const { mesaId } = resizingMesa.current
+      resizingMesa.current = null
+      const { w, h } = tamanios.current[mesaId]
+      try { await api.put(`/mesas/${mesaId}`, { ancho: w, alto: h }) }
+      catch (e) { console.error(e) }
+    }
+
+    if (resizingSalon.current) {
+      resizingSalon.current = null
+      try { await api.put(`/salones/${salonActivo}`, { ancho: canvasW, alto: canvasH }) }
+      catch (e) { console.error(e) }
+    }
+  }
+
   const handleClickMesa = (mesa) => {
     if (modoEdicion) return
-    if (modoNuevo && mesa.estado_id !== 1) {
-      alert('Mesa ocupada — elegí otra')
-      return
-    }
-    navigate(`/pedido/${mesa.id}`)
+    if (modoNuevo && mesa.estado_id !== 1) { alert('Mesa ocupada — elegí otra'); return }
+    navigate(`/pedido/${mesa.id}?tipo=Salon`)
   }
 
   const handleEliminar = async (e, mesaId) => {
@@ -128,19 +196,14 @@ export default function MapaMesas() {
     cargarMesas(salonActivo)
   }
 
-  // ── Canvas height dinámico ────────────────────────────────
   const mesasDelSalon = mesas.filter(m => m.salon_id === salonActivo)
-  const canvasH = Math.max(
-    480,
-    ...mesasDelSalon.map(m => {
-      const pos = posiciones.current[m.id] || posInicial(0)
-      return pos.y + MESA_H + GRID_GAP
-    })
-  )
 
-  // ── Render ───────────────────────────────────────────────
   return (
-    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif", userSelect: 'none' }}>
+    <div
+      style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif", userSelect: 'none' }}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+    >
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -150,8 +213,7 @@ export default function MapaMesas() {
             {mesasDelSalon.filter(m => m.estado_id === 2).length} ocupadas · {mesasDelSalon.filter(m => m.estado_id === 1).length} libres
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10 }}>
           {isAdmin && (
             <button
               onClick={() => setModoEdicion(v => !v)}
@@ -160,21 +222,16 @@ export default function MapaMesas() {
                 color:      modoEdicion ? '#fff' : '#5C3A2E',
                 border:     `1px solid ${modoEdicion ? WINE : '#EDE0DB'}`,
                 borderRadius: 10, padding: '8px 16px',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                transition: 'all 0.15s',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
               }}
             >
-              {modoEdicion ? '✓ Guardando posiciones' : '✎ Editar disposición'}
+              {modoEdicion ? '✓ Listo' : '✎ Editar disposición'}
             </button>
           )}
           {isAdmin && (
             <button
               onClick={() => navigate('/mesas/nueva')}
-              style={{
-                background: WINE, color: '#fff', border: 'none',
-                borderRadius: 10, padding: '8px 16px',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
+              style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               + Nueva mesa
             </button>
@@ -183,14 +240,20 @@ export default function MapaMesas() {
       </div>
 
       {/* Tabs salones */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid #EDE0DB', paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid #EDE0DB' }}>
         {salones.map(salon => (
           <button
             key={salon.id}
-            onClick={() => { posiciones.current = {}; setSalonActivo(salon.id) }}
+            onClick={() => {
+              posiciones.current = {}
+              tamanios.current   = {}
+              setSalonActivo(salon.id)
+              cargarSalon(salon.id, salones)
+            }}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '8px 16px', fontSize: 14, fontWeight: salonActivo === salon.id ? 600 : 400,
+              padding: '8px 16px', fontSize: 14,
+              fontWeight: salonActivo === salon.id ? 600 : 400,
               color: salonActivo === salon.id ? WINE : '#A0786A',
               borderBottom: salonActivo === salon.id ? `2px solid ${WINE}` : '2px solid transparent',
               marginBottom: -1, transition: 'all 0.15s',
@@ -201,138 +264,133 @@ export default function MapaMesas() {
         ))}
       </div>
 
-      {/* Canvas */}
-      <div
-        ref={canvasRef}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: canvasH,
-          background: modoEdicion ? '#FFFBF9' : '#fff',
-          border: `1px solid ${modoEdicion ? '#FCA5A5' : '#EDE0DB'}`,
-          borderRadius: 16,
-          overflow: 'hidden',
-          transition: 'border-color 0.2s, background 0.2s',
-          // Grid pattern sutil en modo edición
-          backgroundImage: modoEdicion
-            ? 'radial-gradient(circle, #EDE0DB 1px, transparent 1px)'
-            : 'none',
-          backgroundSize: modoEdicion ? '28px 28px' : 'auto',
-        }}
-      >
-        {modoEdicion && (
-          <div style={{
-            position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-            fontSize: 12, color: '#C09080', fontWeight: 500,
-            background: '#fff', padding: '4px 12px', borderRadius: 20,
-            border: '1px solid #EDE0DB', pointerEvents: 'none',
-          }}>
-            Arrastrá las mesas para reordenarlas
-          </div>
-        )}
-
-        {mesasDelSalon.map((mesa, i) => {
-          const pos    = posiciones.current[mesa.id] || posInicial(i)
-          const colors = colorMesa(mesa.estado_id)
-          const hover  = mesaHover === mesa.id
-
-          return (
-            <div
-              id={`mesa-${mesa.id}`}
-              key={mesa.id}
-              onMouseDown={(e) => onMouseDown(e, mesa)}
-              onMouseEnter={() => setMesaHover(mesa.id)}
-              onMouseLeave={() => setMesaHover(null)}
-              onClick={() => handleClickMesa(mesa)}
-              style={{
-                position: 'absolute',
-                left: pos.x, top: pos.y,
-                width: MESA_W, height: MESA_H,
-                background: colors.bg,
-                border: `2px solid ${hover ? colors.dot : colors.border}`,
-                borderRadius: 14,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                cursor: modoEdicion ? 'grab' : 'pointer',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
-                boxShadow: hover && !modoEdicion ? '0 4px 16px rgba(124,45,18,0.12)' : 'none',
-              }}
-            >
-              {/* Dot estado */}
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: colors.dot, marginBottom: 6,
-              }} />
-
-              <div style={{ fontSize: 11, fontWeight: 600, color: colors.text, opacity: 0.7 }}>
-                Mesa
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: colors.text, lineHeight: 1, letterSpacing: '-0.5px' }}>
-                {mesa.nro_id}
-              </div>
-              <div style={{ fontSize: 10, color: colors.text, opacity: 0.6, marginTop: 3 }}>
-                {mesa.capacidad} pers.
-              </div>
-
-              {/* Acciones admin en hover */}
-              {hover && isAdmin && modoEdicion && (
-                <div style={{
-                  position: 'absolute', top: -12, right: -8,
-                  display: 'flex', gap: 4,
-                }}>
-                  <button
-                    onMouseDown={e => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); navigate(`/mesas/${mesa.id}/editar`) }}
-                    style={{
-                      width: 24, height: 24, borderRadius: 6,
-                      background: '#3B82F6', color: '#fff',
-                      border: 'none', fontSize: 11, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >✎</button>
-                  <button
-                    onMouseDown={e => e.stopPropagation()}
-                    onClick={(e) => handleEliminar(e, mesa.id)}
-                    style={{
-                      width: 24, height: 24, borderRadius: 6,
-                      background: '#EF4444', color: '#fff',
-                      border: 'none', fontSize: 11, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >✕</button>
-                </div>
-              )}
+      {/* Canvas salón */}
+      <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
+        <div
+          ref={canvasRef}
+          style={{
+            position: 'relative',
+            width: canvasW, height: canvasH,
+            background: modoEdicion ? '#FFFBF9' : '#fff',
+            border: `1px solid ${modoEdicion ? '#FCA5A5' : '#EDE0DB'}`,
+            borderRadius: 16, overflow: 'hidden',
+            transition: 'border-color 0.2s, background 0.2s',
+            backgroundImage: modoEdicion ? 'radial-gradient(circle, #EDE0DB 1px, transparent 1px)' : 'none',
+            backgroundSize: modoEdicion ? '28px 28px' : 'auto',
+          }}
+        >
+          {modoEdicion && (
+            <div style={{
+              position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+              fontSize: 12, color: '#C09080', fontWeight: 500,
+              background: '#fff', padding: '4px 12px', borderRadius: 20,
+              border: '1px solid #EDE0DB', pointerEvents: 'none', zIndex: 10, whiteSpace: 'nowrap',
+            }}>
+              Mover mesas · ↘ para redimensionar mesa · Esquina del salón para agrandar/achicar
             </div>
-          )
-        })}
+          )}
 
-        {mesasDelSalon.length === 0 && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            color: '#C09080', fontSize: 14, gap: 8,
-          }}>
-            <div style={{ fontSize: 32 }}>⊞</div>
-            No hay mesas en este salón
+          {mesasDelSalon.map((mesa, i) => {
+            const pos    = posiciones.current[mesa.id] || posInicial(i)
+            const tam    = tamanios.current[mesa.id]   || { w: MESA_DEF, h: MESA_DEF }
+            const colors = colorMesa(mesa.estado_id)
+            const hover  = mesaHover === mesa.id
+
+            return (
+              <div
+                id={`mesa-${mesa.id}`}
+                key={mesa.id}
+                onMouseDown={e => onMouseDown(e, mesa)}
+                onMouseEnter={() => setMesaHover(mesa.id)}
+                onMouseLeave={() => setMesaHover(null)}
+                onClick={() => handleClickMesa(mesa)}
+                style={{
+                  position: 'absolute',
+                  left: pos.x, top: pos.y,
+                  width: tam.w, height: tam.h,
+                  background: colors.bg,
+                  border: `2px solid ${hover ? colors.dot : colors.border}`,
+                  borderRadius: 14,
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  cursor: modoEdicion ? 'grab' : 'pointer',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  boxShadow: hover && !modoEdicion ? '0 4px 16px rgba(124,45,18,0.12)' : 'none',
+                }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: colors.dot, marginBottom: 6 }} />
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.text, opacity: 0.7 }}>Mesa</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: colors.text, lineHeight: 1, letterSpacing: '-0.5px' }}>{mesa.nro_id}</div>
+                <div style={{ fontSize: 10, color: colors.text, opacity: 0.6, marginTop: 3 }}>{mesa.capacidad} pers.</div>
+
+                {hover && isAdmin && modoEdicion && (
+                  <div style={{ position: 'absolute', top: -12, right: -8, display: 'flex', gap: 4, zIndex: 5 }}>
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={e => { e.stopPropagation(); navigate(`/mesas/${mesa.id}/editar`) }}
+                      style={{ width: 24, height: 24, borderRadius: 6, background: '#3B82F6', color: '#fff', border: 'none', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >✎</button>
+                    <button
+                      onMouseDown={e => e.stopPropagation()}
+                      onClick={e => handleEliminar(e, mesa.id)}
+                      style={{ width: 24, height: 24, borderRadius: 6, background: '#EF4444', color: '#fff', border: 'none', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >✕</button>
+                  </div>
+                )}
+
+                {modoEdicion && (
+                  <div
+                    data-resize="true"
+                    onMouseDown={e => onResizeMesaDown(e, mesa)}
+                    style={{ position: 'absolute', bottom: 3, right: 3, width: 14, height: 14, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M9 1L1 9M9 5L5 9" stroke={colors.dot} strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {mesasDelSalon.length === 0 && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#C09080', fontSize: 14, gap: 8 }}>
+              <div style={{ fontSize: 32 }}>⊞</div>
+              No hay mesas en este salón
+            </div>
+          )}
+        </div>
+
+        {/* Handle resize salón — esquina inferior derecha */}
+        {modoEdicion && (
+          <div
+            onMouseDown={onResizeSalonDown}
+            style={{
+              position: 'absolute', bottom: -6, right: -6,
+              width: 20, height: 20,
+              background: WINE, borderRadius: '50%',
+              cursor: 'nwse-resize', zIndex: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M9 1L1 9M9 5L5 9M5 9L1 9" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
           </div>
         )}
       </div>
 
       {/* Leyenda */}
-      <div style={{ display: 'flex', gap: 20, marginTop: 16 }}>
-        {[
-          { label: 'Libre',   dot: '#22C55E' },
-          { label: 'Ocupada', dot: WINE      },
-        ].map(({ label, dot }) => (
+      <div style={{ display: 'flex', gap: 20, marginTop: 20 }}>
+        {[{ label: 'Libre', dot: '#22C55E' }, { label: 'Ocupada', dot: WINE }].map(({ label, dot }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />
             <span style={{ fontSize: 12, color: '#A0786A' }}>{label}</span>
           </div>
         ))}
+        {modoEdicion && (
+          <span style={{ fontSize: 12, color: '#A0786A' }}>· Círculo rojo ↘ para redimensionar el salón</span>
+        )}
       </div>
     </div>
   )

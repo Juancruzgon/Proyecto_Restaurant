@@ -3,8 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   getPedidosPorMesa, getDetallePedido, getProductos,
   cambiarEstadoPedido, eliminarDetalle, agregarDetalle,
-  crearPedido, getCategorias, eliminarPedido,
-  getUsuarioPorId, modificarCantidad,
+  getCategorias, eliminarPedido, getUsuarioPorId,
+  modificarCantidad, modificarNota, imprimirComanda, imprimirTicket,
 } from '../services/api'
 import api from '../services/api'
 
@@ -12,14 +12,12 @@ const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
 
 const ESTADOS = {
-  1: { label: 'Creado',    bg: '#FEF9C3', color: '#854D0E' },
   2: { label: 'En cocina', bg: '#FEE2E2', color: '#991B1B' },
   3: { label: 'Listo',     bg: '#DCFCE7', color: '#166534' },
   4: { label: 'Pagado',    bg: '#F3F4F6', color: '#6B7280' },
 }
 
 const ESTADO_ACCIONES = {
-  1: { label: 'Enviar a cocina →',    bg: '#EA580C' },
   2: { label: 'Marcar como listo →',  bg: '#16A34A' },
   3: { label: 'Marcar como pagado →', bg: WINE      },
 }
@@ -52,6 +50,10 @@ export default function Pedido() {
   const [buscador,      setBuscador]      = useState('')
   const [itemsTemp,     setItemsTemp]     = useState([])
 
+  const [notaActiva, setNotaActiva] = useState(null)
+  const [notaInput,  setNotaInput]  = useState('')
+  const [imprimiendo, setImprimiendo] = useState(false)
+
   const cargarPedido = useCallback(async () => {
     if (!esSalon) return
     const data = await getPedidosPorMesa(mesaId)
@@ -65,9 +67,7 @@ export default function Pedido() {
         setMozo(u)
       }
     } else {
-      setPedido(null)
-      setDetalles([])
-      setMozo(null)
+      setPedido(null); setDetalles([]); setMozo(null)
     }
   }, [mesaId, esSalon])
 
@@ -115,7 +115,7 @@ export default function Pedido() {
       setItemsTemp(prev => {
         const idx = prev.findIndex(i => i.producto_id === producto.id)
         if (idx >= 0) { const c = [...prev]; c[idx] = { ...c[idx], cantidad: c[idx].cantidad + 1 }; return c }
-        return [...prev, { producto_id: producto.id, cantidad: 1, nombre: producto.nombre, precio: producto.precio }]
+        return [...prev, { producto_id: producto.id, cantidad: 1, nombre: producto.nombre, precio: producto.precio, nota: '' }]
       })
     }
   }
@@ -138,16 +138,37 @@ export default function Pedido() {
     }
   }
 
+  const handleAbrirNota = (key, valorActual) => {
+    setNotaActiva(key)
+    setNotaInput(valorActual || '')
+  }
+
+  const handleGuardarNota = async (key) => {
+    if (typeof key === 'number') {
+      await modificarNota(pedido.id, key, notaInput || null)
+      cargarPedido()
+    } else {
+      const idx = parseInt(key.replace('temp_', ''))
+      setItemsTemp(prev => {
+        const c = [...prev]
+        c[idx] = { ...c[idx], nota: notaInput || '' }
+        return c
+      })
+    }
+    setNotaActiva(null)
+  }
+
   const handleCrearPedido = async () => {
     if (itemsTemp.length === 0) return
-    const payload = {
+    const { data: nuevo } = await api.post('/pedidos/', {
       tipo_pedido: tipoPedido,
-      usuario_id: parseInt(usuarioId),
-      mesa_id: esSalon ? parseInt(mesaId) : null,
-      pager: tipoPedido === 'Takeaway' ? pagerParam : null,
+      usuario_id:  parseInt(usuarioId),
+      mesa_id:     esSalon ? parseInt(mesaId) : null,
+      pager:       tipoPedido === 'Takeaway' ? pagerParam : null,
+    })
+    for (const i of itemsTemp) {
+      await agregarDetalle(nuevo.id, i.producto_id, i.cantidad, i.nota || null)
     }
-    const { data: nuevo } = await api.post('/pedidos/', payload)
-    await Promise.all(itemsTemp.map(i => agregarDetalle(nuevo.id, i.producto_id, i.cantidad)))
     setItemsTemp([])
     setPedido(nuevo)
     const d = await getDetallePedido(nuevo.id)
@@ -158,10 +179,30 @@ export default function Pedido() {
     if (!pedido) return
     await cambiarEstadoPedido(pedido.id)
     if (pedido.estado_id === 3) {
+      // Al pagar Salón imprimir ticket automáticamente
+      try { await imprimirTicket(pedido.id) } catch (e) { console.error(e) }
       navigate(esSalon ? '/mesas' : '/pedidos')
     } else {
       cargarPedido()
     }
+  }
+
+  const handleCobrarTakeaway = async () => {
+    if (!window.confirm('¿Cobrar y cerrar este pedido?')) return
+    setImprimiendo(true)
+    try {
+      await api.put(`/pedidos/${pedido.id}/cobrar`)
+      try { await imprimirTicket(pedido.id) } catch (e) { console.error(e) }
+      navigate('/pedidos')
+    } finally {
+      setImprimiendo(false)
+    }
+  }
+
+  const handleImprimirComanda = async () => {
+    setImprimiendo(true)
+    try { await imprimirComanda(pedido.id) } catch (e) { console.error(e) }
+    finally { setImprimiendo(false) }
   }
 
   const handleCancelar = async () => {
@@ -183,8 +224,75 @@ export default function Pedido() {
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden' }}>
 
-      {/* ═══ PANEL IZQUIERDO ═══ */}
-      <div style={{ width: 340, minWidth: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: '1px solid #EDE0DB', background: '#fff' }}>
+      {/* ═══ PANEL IZQUIERDO — Carta ═══ */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F5F4', overflow: 'hidden' }}>
+        <div style={{ background: '#fff', borderBottom: '1px solid #EDE0DB', padding: '14px 20px 0' }}>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#C09080' }}>🔍</span>
+            <input type="text" placeholder="Buscar producto..." value={buscador} onChange={e => setBuscador(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid #EDE0DB', borderRadius: 10, fontSize: 13, outline: 'none', background: '#F8F5F4', color: '#1A0A06', fontFamily: 'inherit' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
+            {categorias.map(cat => (
+              <button key={cat.id} onClick={() => { setCatRaiz(cat.id); setBuscador('') }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 14px', fontSize: 13, whiteSpace: 'nowrap', fontWeight: catRaiz === cat.id ? 600 : 400, color: catRaiz === cat.id ? WINE : '#A0786A', borderBottom: catRaiz === cat.id ? `2px solid ${WINE}` : '2px solid transparent', marginBottom: -1, transition: 'all 0.15s' }}>
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {subcategorias.length > 0 && !buscador && (
+          <div style={{ display: 'flex', gap: 8, padding: '10px 20px', overflowX: 'auto', background: '#fff', borderBottom: '1px solid #EDE0DB' }}>
+            {subcategorias.map(sub => (
+              <button key={sub.id} onClick={() => setCatActiva(sub.id)}
+                style={{ background: catActiva === sub.id ? WINE_LIGHT : '#F8F5F4', color: catActiva === sub.id ? WINE : '#5C3A2E', border: `1px solid ${catActiva === sub.id ? '#FCA5A5' : '#EDE0DB'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: catActiva === sub.id ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                {sub.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
+          {productosFiltrados.length === 0
+            ? <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '48px 0' }}>No hay productos en esta categoría</div>
+            : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 12 }}>
+                {productosFiltrados.map(prod => {
+                  const cant = cantidadEnPedido(prod.id)
+                  return (
+                    <div key={prod.id} style={{ background: '#fff', border: `2px solid ${cant > 0 ? WINE : '#EDE0DB'}`, borderRadius: 14, overflow: 'hidden', boxShadow: cant > 0 ? '0 4px 12px rgba(124,45,18,0.1)' : 'none' }}>
+                      <div style={{ height: 90, background: prod.imagen_url ? 'transparent' : (cant > 0 ? WINE_LIGHT : '#F8F5F4'), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {prod.imagen_url ? <img src={prod.imagen_url} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 32 }}>🍕</span>}
+                      </div>
+                      <div style={{ padding: '9px 11px 11px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06', marginBottom: 1, lineHeight: 1.3 }}>{prod.nombre}</div>
+                        {prod.descripcion && <div style={{ fontSize: 10, color: '#A0786A', marginBottom: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.descripcion}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: WINE }}>{fmtPeso(prod.precio)}</span>
+                          {cant === 0
+                            ? <button onClick={() => handleAgregar(prod)} style={{ width: 26, height: 26, borderRadius: 8, background: WINE, color: '#fff', border: 'none', fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                            : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <button onClick={() => handleRestar(prod.id)} style={{ width: 22, height: 22, borderRadius: 6, background: '#F5EDE8', border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: WINE, minWidth: 12, textAlign: 'center' }}>{cant}</span>
+                                <button onClick={() => handleAgregar(prod)} style={{ width: 22, height: 22, borderRadius: 6, background: WINE_LIGHT, border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                              </div>
+                            )
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          }
+        </div>
+      </div>
+
+      {/* ═══ PANEL DERECHO — Detalle pedido ═══ */}
+      <div style={{ width: 340, minWidth: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #EDE0DB', background: '#fff' }}>
 
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #EDE0DB' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -212,38 +320,64 @@ export default function Pedido() {
             detalles.length === 0
               ? <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '32px 0' }}>Sin productos aún</div>
               : detalles.map(d => (
-                <div key={d.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 10, borderBottom: '1px solid #F5EDE8' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: '#FEF2EE', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                    {d.imagen_url ? <img src={d.imagen_url} alt={d.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🍕'}
+                <div key={d.id} style={{ padding: '10px 20px', borderBottom: '1px solid #F5EDE8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: '#FEF2EE', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                      {d.imagen_url ? <img src={d.imagen_url} alt={d.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🍕'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nombre || `Producto ${d.producto_id}`}</div>
+                      <div style={{ fontSize: 11, color: '#A0786A' }}>{fmtPeso(d.precio_unitario)} c/u</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button onClick={() => handleRestar(d.producto_id)} style={{ width: 24, height: 24, borderRadius: 7, background: '#F5EDE8', border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1A0A06', minWidth: 14, textAlign: 'center' }}>{d.cantidad}</span>
+                      <button onClick={() => handleAgregar({ id: d.producto_id, nombre: d.nombre, precio: d.precio_unitario })} style={{ width: 24, height: 24, borderRadius: 7, background: WINE_LIGHT, border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1A0A06', minWidth: 52, textAlign: 'right' }}>{fmtPeso(d.subtotal)}</div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.nombre || `Producto ${d.producto_id}`}</div>
-                    <div style={{ fontSize: 11, color: '#A0786A' }}>{fmtPeso(d.precio_unitario)} c/u</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button onClick={() => handleRestar(d.producto_id)} style={{ width: 24, height: 24, borderRadius: 7, background: '#F5EDE8', border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1A0A06', minWidth: 14, textAlign: 'center' }}>{d.cantidad}</span>
-                    <button onClick={() => handleAgregar({ id: d.producto_id, nombre: d.nombre, precio: d.precio_unitario })} style={{ width: 24, height: 24, borderRadius: 7, background: WINE_LIGHT, border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1A0A06', minWidth: 52, textAlign: 'right' }}>{fmtPeso(d.subtotal)}</div>
+                  {notaActiva === d.id ? (
+                    <input autoFocus value={notaInput} onChange={e => setNotaInput(e.target.value)}
+                      onBlur={() => handleGuardarNota(d.id)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleGuardarNota(d.id); if (e.key === 'Escape') setNotaActiva(null) }}
+                      placeholder="Ej: poca salsa, sin cebolla..."
+                      style={{ marginTop: 5, width: '100%', fontSize: 11, color: '#5C3A2E', background: '#FEF9F7', border: '1px solid #EDE0DB', borderRadius: 6, padding: '3px 8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  ) : (
+                    <div onClick={() => handleAbrirNota(d.id, d.nota)} style={{ marginTop: 4, fontSize: 10, color: d.nota ? '#7C4A3A' : '#C09080', cursor: 'pointer', paddingLeft: 46 }}>
+                      {d.nota ? `📝 ${d.nota}` : '+ agregar nota'}
+                    </div>
+                  )}
                 </div>
               ))
           ) : (
             itemsTemp.length === 0
               ? <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '32px 20px' }}>Seleccioná productos de la carta →</div>
               : itemsTemp.map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 10, borderBottom: '1px solid #F5EDE8' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: '#FEF2EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🍕</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06' }}>{item.nombre}</div>
-                    <div style={{ fontSize: 11, color: '#A0786A' }}>{fmtPeso(item.precio)} c/u</div>
+                <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid #F5EDE8' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: '#FEF2EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🍕</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06' }}>{item.nombre}</div>
+                      <div style={{ fontSize: 11, color: '#A0786A' }}>{fmtPeso(item.precio)} c/u</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button onClick={() => handleRestar(item.producto_id)} style={{ width: 24, height: 24, borderRadius: 7, background: '#F5EDE8', border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1A0A06', minWidth: 14, textAlign: 'center' }}>{item.cantidad}</span>
+                      <button onClick={() => handleAgregar({ id: item.producto_id, nombre: item.nombre, precio: item.precio })} style={{ width: 24, height: 24, borderRadius: 7, background: WINE_LIGHT, border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#1A0A06', minWidth: 52, textAlign: 'right' }}>{fmtPeso(Number(item.precio) * item.cantidad)}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button onClick={() => handleRestar(item.producto_id)} style={{ width: 24, height: 24, borderRadius: 7, background: '#F5EDE8', border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1A0A06', minWidth: 14, textAlign: 'center' }}>{item.cantidad}</span>
-                    <button onClick={() => handleAgregar({ id: item.producto_id, nombre: item.nombre, precio: item.precio })} style={{ width: 24, height: 24, borderRadius: 7, background: WINE_LIGHT, border: 'none', fontSize: 14, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1A0A06', minWidth: 52, textAlign: 'right' }}>{fmtPeso(Number(item.precio) * item.cantidad)}</div>
+                  {notaActiva === `temp_${i}` ? (
+                    <input autoFocus value={notaInput} onChange={e => setNotaInput(e.target.value)}
+                      onBlur={() => handleGuardarNota(`temp_${i}`)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleGuardarNota(`temp_${i}`); if (e.key === 'Escape') setNotaActiva(null) }}
+                      placeholder="Ej: poca salsa, sin cebolla..."
+                      style={{ marginTop: 5, width: '100%', fontSize: 11, color: '#5C3A2E', background: '#FEF9F7', border: '1px solid #EDE0DB', borderRadius: 6, padding: '3px 8px', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  ) : (
+                    <div onClick={() => handleAbrirNota(`temp_${i}`, item.nota)} style={{ marginTop: 4, fontSize: 10, color: item.nota ? '#7C4A3A' : '#C09080', cursor: 'pointer', paddingLeft: 46 }}>
+                      {item.nota ? `📝 ${item.nota}` : '+ agregar nota'}
+                    </div>
+                  )}
                 </div>
               ))
           )}
@@ -256,13 +390,37 @@ export default function Pedido() {
               {pedido ? fmtPeso(pedido.total) : fmtPeso(totalTemp)}
             </span>
           </div>
+
           {pedido ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+              {/* Avanzar estado normal */}
               {accion && (
                 <button onClick={handleAvanzarEstado} style={{ background: accion.bg, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
                   {accion.label}
                 </button>
               )}
+
+              {/* Cobro anticipado Takeaway — disponible desde En cocina */}
+              {tipoPedido === 'Takeaway' && pedido.estado_id === 2 && (
+                <button
+                  onClick={handleCobrarTakeaway}
+                  disabled={imprimiendo}
+                  style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}
+                >
+                  {imprimiendo ? 'Procesando...' : '💳 Cobrar e imprimir ticket'}
+                </button>
+              )}
+
+              {/* Imprimir comanda manual */}
+              <button
+                onClick={handleImprimirComanda}
+                disabled={imprimiendo}
+                style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}
+              >
+                🖨 Reimprimir comanda
+              </button>
+
               <button onClick={handleCancelar} style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%' }}>
                 Cancelar pedido
               </button>
@@ -272,76 +430,6 @@ export default function Pedido() {
               Crear pedido
             </button>
           )}
-        </div>
-      </div>
-
-      {/* ═══ PANEL DERECHO — Carta ═══ */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F5F4', overflow: 'hidden' }}>
-        <div style={{ background: '#fff', borderBottom: '1px solid #EDE0DB', padding: '14px 20px 0' }}>
-          <div style={{ position: 'relative', marginBottom: 12 }}>
-            <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#C09080' }}>🔍</span>
-            <input type="text" placeholder="Buscar producto..." value={buscador} onChange={e => setBuscador(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid #EDE0DB', borderRadius: 10, fontSize: 13, outline: 'none', background: '#F8F5F4', color: '#1A0A06', fontFamily: 'inherit' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
-            {categorias.map(cat => (
-              <button key={cat.id} onClick={() => { setCatRaiz(cat.id); setBuscador('') }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 14px', fontSize: 13, whiteSpace: 'nowrap', fontWeight: catRaiz === cat.id ? 600 : 400, color: catRaiz === cat.id ? WINE : '#A0786A', borderBottom: catRaiz === cat.id ? `2px solid ${WINE}` : '2px solid transparent', marginBottom: -1, transition: 'all 0.15s' }}>
-                {cat.nombre}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {subcategorias.length > 0 && !buscador && (
-          <div style={{ display: 'flex', gap: 8, padding: '10px 20px', overflowX: 'auto', background: '#fff', borderBottom: '1px solid #EDE0DB' }}>
-            {subcategorias.map(sub => (
-              <button key={sub.id} onClick={() => setCatActiva(sub.id)}
-                style={{ background: catActiva === sub.id ? WINE_LIGHT : '#F8F5F4', color: catActiva === sub.id ? WINE : '#5C3A2E', border: `1px solid ${catActiva === sub.id ? '#FCA5A5' : '#EDE0DB'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: catActiva === sub.id ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}>
-                {sub.nombre}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
-          {productosFiltrados.length === 0
-            ? <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '48px 0' }}>No hay productos en esta categoría</div>
-            : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 12 }}>
-                {productosFiltrados.map(prod => {
-                  const cant = cantidadEnPedido(prod.id)
-                  return (
-                    <div key={prod.id} style={{ background: '#fff', border: `2px solid ${cant > 0 ? WINE : '#EDE0DB'}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.15s, box-shadow 0.15s', boxShadow: cant > 0 ? '0 4px 12px rgba(124,45,18,0.1)' : 'none' }}>
-                      <div style={{ height: 90, background: prod.imagen_url ? 'transparent' : (cant > 0 ? WINE_LIGHT : '#F8F5F4'), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {prod.imagen_url
-                          ? <img src={prod.imagen_url} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : <span style={{ fontSize: 32 }}>🍕</span>
-                        }
-                      </div>
-                      <div style={{ padding: '9px 11px 11px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06', marginBottom: 1, lineHeight: 1.3 }}>{prod.nombre}</div>
-                        {prod.descripcion && <div style={{ fontSize: 10, color: '#A0786A', marginBottom: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.descripcion}</div>}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: WINE }}>{fmtPeso(prod.precio)}</span>
-                          {cant === 0
-                            ? <button onClick={() => handleAgregar(prod)} style={{ width: 26, height: 26, borderRadius: 8, background: WINE, color: '#fff', border: 'none', fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                            : (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <button onClick={() => handleRestar(prod.id)} style={{ width: 22, height: 22, borderRadius: 6, background: '#F5EDE8', border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: WINE, minWidth: 12, textAlign: 'center' }}>{cant}</span>
-                                <button onClick={() => handleAgregar(prod)} style={{ width: 22, height: 22, borderRadius: 6, background: WINE_LIGHT, border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                              </div>
-                            )
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          }
         </div>
       </div>
     </div>

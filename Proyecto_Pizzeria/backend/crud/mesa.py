@@ -1,6 +1,7 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.mesa import Mesa
+from models.estado import EstadoMesa
 import schemas
 from fastapi import HTTPException
 

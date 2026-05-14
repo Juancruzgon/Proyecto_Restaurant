@@ -10,3 +10,5 @@ class Mesa(SQLModel, table=True):
     activo: bool = Field(default=True)
     pos_x: Optional[float] = Field(default=None)
     pos_y: Optional[float] = Field(default=None)
+    ancho: Optional[float] = Field(default=88)
+    alto:  Optional[float] = Field(default=88)

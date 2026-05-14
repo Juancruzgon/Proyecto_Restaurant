@@ -13,6 +13,8 @@ class MesaModify(pydantic.BaseModel):
     salon_id: Optional[int] = None
     pos_x: Optional[float] = None
     pos_y: Optional[float] = None
+    ancho: Optional[float] = None
+    alto:  Optional[float] = None
  
 class MesaPosicion(pydantic.BaseModel):
     pos_x: float

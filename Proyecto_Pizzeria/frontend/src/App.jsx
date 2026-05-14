@@ -18,6 +18,7 @@ import CategoriaInsumos from './pages/CategoriaInsumos'
 import EditarInsumo from './pages/EditarInsumo'
 import Gastos from './pages/Gastos'
 import CategoriaGastos from './pages/CategoriaGastos'
+import PantallaCocina from './pages/PantallaCocina'
 
 function W({ children }) {
   return <Layout>{children}</Layout>
@@ -50,6 +51,8 @@ function App() {
       <Route path="/insumos/:categoriaId/:insumoId"         element={<W><EditarInsumo /></W>} />
       <Route path="/gastos"                                 element={<W><Gastos /></W>} />
       <Route path="/gastos/:categoriaId"                    element={<W><CategoriaGastos /></W>} />
+      <Route path="/cocina" element={<PantallaCocina />} />
+
     </Routes>
   )
 }

@@ -2,67 +2,87 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCategoriasInsumo, crearCategoriaInsumo } from '../services/api'
 
-function Insumos() {
-  const [categorias, setCategorias] = useState([])
-  const [nombreCategoria, setNombreCategoria] = useState('')
-  const [mostrarFormulario, setMostrarFormulario] = useState(false)
+const WINE       = '#7C2D12'
+const WINE_LIGHT = '#FEF2EE'
+
+export default function Insumos() {
   const navigate = useNavigate()
+  const [categorias,        setCategorias]        = useState([])
+  const [nombreCategoria,   setNombreCategoria]   = useState('')
+  const [mostrarFormulario, setMostrarFormulario] = useState(false)
 
-  useEffect(() => {
-    getCategoriasInsumo().then(data => setCategorias(data))
-  }, [])
+  const cargar = () => getCategoriasInsumo().then(data => setCategorias(data))
+  useEffect(() => { cargar() }, [])
 
-  const handleCrearCategoria = () => {
+  const handleCrear = () => {
+    if (!nombreCategoria.trim()) return
     crearCategoriaInsumo({ nombre: nombreCategoria }).then(() => {
-      getCategoriasInsumo().then(data => setCategorias(data))
+      cargar()
       setNombreCategoria('')
       setMostrarFormulario(false)
     })
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold !text-orange-500">Insumos</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
+    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Insumos</div>
+          <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{categorias.length} categorías</div>
         </div>
+        <button
+          onClick={() => setMostrarFormulario(true)}
+          style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Nueva categoría
+        </button>
       </div>
 
-      <div className="max-w-2xl mx-auto mt-6 px-4">
-        <div className="flex flex-col gap-3 mb-4">
-          {categorias.map(c => (
-            <div key={c.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
-              <span className="font-semibold text-gray-700">{c.nombre}</span>
-              <button
-                onClick={() => navigate(`/insumos/${c.id}`)}
-                className="text-sm text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition"
-              >
-                Ver →
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {mostrarFormulario ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h2 className="font-semibold text-gray-700 mb-3">Nueva categoría</h2>
-            <input
-              value={nombreCategoria}
-              onChange={(e) => setNombreCategoria(e.target.value)}
-              placeholder="Nombre de la categoría"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <div className="flex gap-2">
-              <button onClick={handleCrearCategoria} className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-semibold hover:bg-orange-600 transition text-sm">Confirmar</button>
-              <button onClick={() => setMostrarFormulario(false)} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 transition text-sm">Cancelar</button>
-            </div>
+      {/* Formulario */}
+      {mostrarFormulario && (
+        <div style={{ background: '#fff', border: `1px solid ${WINE}`, borderRadius: 14, padding: '18px 20px', marginBottom: 16, maxWidth: 480 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 12 }}>Nueva categoría</div>
+          <input
+            autoFocus
+            value={nombreCategoria}
+            onChange={e => setNombreCategoria(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCrear()}
+            placeholder="Nombre de la categoría"
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid #EDE0DB', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 12 }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombreCategoria('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
-        ) : (
+        </div>
+      )}
+
+      {/* Grid categorías */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+        {categorias.map(c => (
+          <div
+            key={c.id}
+            style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
+            <button
+              onClick={() => navigate(`/insumos/${c.id}`)}
+              style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Ver →
+            </button>
+          </div>
+        ))}
+
+        {/* Card agregar */}
+        {!mostrarFormulario && (
           <button
             onClick={() => setMostrarFormulario(true)}
-            className="w-full border-2 border-dashed border-gray-300 text-gray-400 py-3 rounded-xl hover:border-orange-400 hover:text-orange-400 transition"
+            style={{ background: 'none', border: '2px dashed #EDE0DB', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', color: '#C09080', fontSize: 13, fontWeight: 500, transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = WINE; e.currentTarget.style.color = WINE }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#EDE0DB'; e.currentTarget.style.color = '#C09080' }}
           >
             + Agregar categoría
           </button>
@@ -71,5 +91,3 @@ function Insumos() {
     </div>
   )
 }
-
-export default Insumos

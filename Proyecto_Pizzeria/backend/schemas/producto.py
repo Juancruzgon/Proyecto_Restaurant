@@ -8,6 +8,8 @@ class ProductoCreate(pydantic.BaseModel):
     precio: Decimal
     categoria_id: int
     imagen_url: Optional[str] = None
+    tipo: str = "sin_receta"
+    insumo_id: Optional[int] = None
 
 class ProductoModify(pydantic.BaseModel):
     nombre: Optional[str] = None
@@ -16,3 +18,5 @@ class ProductoModify(pydantic.BaseModel):
     categoria_id: Optional[int] = None
     descuento: Optional[int] = None
     imagen_url: Optional[str] = None
+    tipo: Optional[str] = None
+    insumo_id: Optional[int] = None

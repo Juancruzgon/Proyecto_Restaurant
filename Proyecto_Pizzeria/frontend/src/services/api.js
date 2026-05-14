@@ -97,11 +97,17 @@ export const modificarCantidad = async (pedidoId, detalleId, cantidad) => {
   return response.data
 }
 
-export const agregarDetalle = async (pedidoId, productoId, cantidad) => {
+export const agregarDetalle = async (pedidoId, productoId, cantidad, nota = null) => {
   const response = await api.post(`/pedidos/${pedidoId}/detalle`, {
     producto_id: productoId,
-    cantidad: cantidad
+    cantidad,
+    ...(nota ? { nota } : {}),
   })
+  return response.data
+}
+
+export const modificarNota = async (pedidoId, detalleId, nota) => {
+  const response = await api.put(`/pedidos/${pedidoId}/detalle/${detalleId}/nota`, { nota: nota || null })
   return response.data
 }
 
@@ -216,10 +222,6 @@ export const getInsumo = async (categoriaId = null) => {
   return response.data
 }
 
-export const agregarCompra = async (insumoId, cantidad) => {
-  const response = await api.post(`/insumos/${insumoId}/compra?cantidad=${cantidad}`)
-  return response.data
-}
 export const crearInsumo = async (data) => {
   const response = await api.post('/insumos/', data)
   return response.data
@@ -257,5 +259,42 @@ export const modificarCategoria = async (categoriaId, data) => {
 
 export const eliminarCategoria = async (categoriaId) => {
   const response = await api.delete(`/categorias-productos/${categoriaId}`)
+  return response.data
+}
+export const imprimirComanda = async (pedidoId) => {
+  const response = await api.post(`/pedidos/${pedidoId}/imprimir-comanda`)
+  return response.data
+}
+
+export const imprimirTicket = async (pedidoId) => {
+  const response = await api.post(`/pedidos/${pedidoId}/imprimir-ticket`)
+  return response.data
+}
+export const getReceta = async (productoId) => {
+  const response = await api.get(`/recetas/producto/${productoId}`)
+  return response.data
+}
+
+export const agregarIngrediente = async (data) => {
+  const response = await api.post('/recetas/', data)
+  return response.data
+}
+
+export const modificarIngrediente = async (recetaId, data) => {
+  const response = await api.put(`/recetas/${recetaId}`, data)
+  return response.data
+}
+
+export const eliminarIngrediente = async (recetaId) => {
+  const response = await api.delete(`/recetas/${recetaId}`)
+  return response.data
+}
+
+export const getInsumos = async () => {
+  const response = await api.get('/insumos/')
+  return response.data
+}
+export const agregarCompra = async (insumoId, cantidad, monto) => {
+  const response = await api.post(`/insumos/${insumoId}/compra`, { cantidad, monto })
   return response.data
 }

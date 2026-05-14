@@ -11,3 +11,5 @@ class Producto(SQLModel, table=True):
     activo: bool = Field(default=True)
     descuento: Optional[int] = None
     imagen_url: Optional[str] = Field(default=None)
+    tipo: str = Field(default="sin_receta")  # sin_receta / con_receta
+    insumo_id: Optional[int] = Field(default=None, foreign_key="insumo.id")

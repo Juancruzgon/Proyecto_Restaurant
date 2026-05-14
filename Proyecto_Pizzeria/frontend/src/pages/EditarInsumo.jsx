@@ -2,15 +2,33 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getInsumo, modificarInsumo, eliminarInsumo, getCategoriasInsumo } from '../services/api'
 
-function EditarInsumo() {
+const WINE       = '#7C2D12'
+const WINE_LIGHT = '#FEF2EE'
+const UNIDADES   = ['unidad', 'kg', 'gr', 'litros', 'ml', 'docena']
+
+const inputStyle = {
+  width: '100%', padding: '9px 12px',
+  border: '1px solid #EDE0DB', borderRadius: 9,
+  fontSize: 13, outline: 'none',
+  fontFamily: 'inherit', color: '#1A0A06', background: '#fff',
+}
+
+const labelStyle = {
+  fontSize: 12, fontWeight: 600,
+  color: '#A0786A', marginBottom: 5, display: 'block',
+}
+
+export default function EditarInsumo() {
   const { categoriaId, insumoId } = useParams()
   const navigate = useNavigate()
-  const [insumo, setInsumo] = useState(null)
-  const [nombre, setNombre] = useState('')
-  const [precio, setPrecio] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [categorias, setCategorias] = useState([])
-  const [categoriaId2, setCategoriaId2] = useState('')
+
+  const [insumo,        setInsumo]        = useState(null)
+  const [nombre,        setNombre]        = useState('')
+  const [precio,        setPrecio]        = useState('')
+  const [descripcion,   setDescripcion]   = useState('')
+  const [catId,         setCatId]         = useState('')
+  const [unidadMedida,  setUnidadMedida]  = useState('unidad')
+  const [categorias,    setCategorias]    = useState([])
 
   useEffect(() => {
     getInsumo(insumoId).then(data => {
@@ -18,71 +36,105 @@ function EditarInsumo() {
       setNombre(data.nombre)
       setPrecio(data.precio)
       setDescripcion(data.descripcion || '')
-      setCategoriaId2(data.categoria_id)
+      setCatId(data.categoria_id)
+      setUnidadMedida(data.unidad_medida || 'unidad')
     })
     getCategoriasInsumo().then(data => setCategorias(data))
   }, [insumoId])
 
   const handleGuardar = () => {
     const datos = {}
-    if (nombre) datos.nombre = nombre
-    if (precio) datos.precio = parseFloat(precio)
-    if (descripcion) datos.descripcion = descripcion
-    if (categoriaId2) datos.categoria_id = parseInt(categoriaId2)
+    if (nombre)       datos.nombre        = nombre
+    if (precio)       datos.precio        = parseFloat(precio)
+    if (descripcion)  datos.descripcion   = descripcion
+    if (catId)        datos.categoria_id  = parseInt(catId)
+    datos.unidad_medida = unidadMedida
     modificarInsumo(insumoId, datos).then(() => navigate(`/insumos/${categoriaId}`))
   }
 
   const handleEliminar = () => {
-    if (window.confirm('¿Estás seguro que querés eliminar este insumo?')) {
+    if (window.confirm('¿Eliminar este insumo?')) {
       eliminarInsumo(insumoId).then(() => navigate(`/insumos/${categoriaId}`))
     }
   }
 
-  if (!insumo) return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
+  if (!insumo) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#A0786A', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>
+      Cargando...
+    </div>
+  )
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold !text-orange-500">Editar Insumo</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
-        </div>
+    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif", maxWidth: 520 }}>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Editar insumo</div>
+        <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{insumo.nombre}</div>
       </div>
 
-      <div className="max-w-sm mx-auto mt-8 px-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Nombre</label>
-              <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Precio</label>
-              <input type="number" value={precio} onChange={(e) => setPrecio(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Descripción</label>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Categoría</label>
-              <select value={categoriaId2} onChange={(e) => setCategoriaId2(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                <option value="">Seleccionar categoría</option>
-                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <button onClick={handleGuardar} className="w-full bg-orange-500 text-white py-2 rounded-lg font-semibold hover:bg-orange-600 transition">
-              Guardar cambios
-            </button>
+      <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, padding: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          <div>
+            <label style={labelStyle}>Nombre</label>
+            <input value={nombre} onChange={e => setNombre(e.target.value)} style={inputStyle} />
           </div>
-          <button onClick={handleEliminar} className="w-full mt-3 border border-red-300 text-red-500 py-2 rounded-lg hover:bg-red-50 transition text-sm">
-            Eliminar insumo
+
+          <div>
+            <label style={labelStyle}>Precio</label>
+            <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Unidad de medida</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {UNIDADES.map(u => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => setUnidadMedida(u)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                    border: `1px solid ${unidadMedida === u ? WINE : '#EDE0DB'}`,
+                    background: unidadMedida === u ? WINE_LIGHT : '#fff',
+                    color: unidadMedida === u ? WINE : '#5C3A2E',
+                    fontSize: 12, fontWeight: unidadMedida === u ? 600 : 400,
+                  }}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Descripción</label>
+            <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Categoría</label>
+            <select value={catId} onChange={e => setCatId(e.target.value)} style={inputStyle}>
+              <option value="">Seleccionar categoría</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
+
+          <button
+            onClick={handleGuardar}
+            style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', marginTop: 4 }}
+          >
+            Guardar cambios
           </button>
         </div>
+
+        <button
+          onClick={handleEliminar}
+          style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', marginTop: 10 }}
+        >
+          Eliminar insumo
+        </button>
       </div>
     </div>
   )
 }
-
-export default EditarInsumo

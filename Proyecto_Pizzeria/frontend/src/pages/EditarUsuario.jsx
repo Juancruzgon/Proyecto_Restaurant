@@ -1,30 +1,46 @@
+// EditarUsuario.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getUsuarioPorId, modificarUsuario, desactivarUsuario, getRoles } from '../services/api'
 
-function EditarUsuario() {
-  const [usuario, setUsuario] = useState(null)
-  const [nombre, setNombre] = useState('')
-  const [apellido, setApellido] = useState('')
-  const [rolId, setRolId] = useState('')
-  const [roles, setRoles] = useState([])
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const navigate = useNavigate()
+const WINE = '#7C2D12'
+
+const inputStyle = {
+  width: '100%', padding: '9px 12px',
+  border: '1px solid #EDE0DB', borderRadius: 9,
+  fontSize: 13, outline: 'none',
+  fontFamily: 'inherit', color: '#1A0A06', background: '#fff',
+}
+
+const labelStyle = {
+  fontSize: 12, fontWeight: 600,
+  color: '#A0786A', marginBottom: 5, display: 'block',
+}
+
+export default function EditarUsuario() {
   const { usuarioId } = useParams()
+  const navigate      = useNavigate()
+
+  const [usuario,  setUsuario]  = useState(null)
+  const [nombre,   setNombre]   = useState('')
+  const [apellido, setApellido] = useState('')
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+  const [rolId,    setRolId]    = useState('')
+  const [roles,    setRoles]    = useState([])
 
   useEffect(() => {
     getUsuarioPorId(usuarioId).then(data => {
       setUsuario(data)
       setNombre(data.nombre)
-      setEmail(data.email)
       setApellido(data.apellido)
+      setEmail(data.email)
       setRolId(data.rol_id)
     })
     getRoles().then(data => setRoles(data))
   }, [usuarioId])
 
-  const handleSubmit = (e) => {
+  const handleGuardar = (e) => {
     e.preventDefault()
     const datos = { nombre, apellido, email, rol_id: parseInt(rolId) }
     if (password) datos.password = password
@@ -32,60 +48,71 @@ function EditarUsuario() {
   }
 
   const handleDesactivar = () => {
-    if (window.confirm('¿Estás seguro que querés desactivar este usuario?')) {
-      desactivarUsuario(usuarioId).then(() => navigate('/usuarios'))
-    }
+    if (!window.confirm('¿Desactivar este usuario?')) return
+    desactivarUsuario(usuarioId).then(() => navigate('/usuarios'))
   }
 
-  if (!usuario) return <div className="flex items-center justify-center min-h-screen text-gray-500">Cargando...</div>
+  if (!usuario) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#A0786A', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>
+      Cargando...
+    </div>
+  )
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold !text-orange-500">Modificar Usuario</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
-        </div>
+    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif", maxWidth: 520 }}>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Editar usuario</div>
+        <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{usuario.nombre} {usuario.apellido}</div>
       </div>
 
-      <div className="max-w-sm mx-auto mt-8 px-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, padding: '24px' }}>
+        <form onSubmit={handleGuardar} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Nombre</label>
-              <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <label style={labelStyle}>Nombre</label>
+              <input value={nombre} onChange={e => setNombre(e.target.value)} style={inputStyle} />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Apellido</label>
-              <input type="text" value={apellido} onChange={(e) => setApellido(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+              <label style={labelStyle}>Apellido</label>
+              <input value={apellido} onChange={e => setApellido(e.target.value)} style={inputStyle} />
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Nueva contraseña (opcional)</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Rol</label>
-              <select value={rolId} onChange={(e) => setRolId(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
-                <option value="">Seleccionar rol</option>
-                {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-              </select>
-            </div>
-            <button type="submit" className="w-full bg-orange-500 text-white py-2 rounded-lg font-semibold hover:bg-orange-600 transition">
-              Guardar cambios
-            </button>
-          </form>
-          <button onClick={handleDesactivar} className="w-full mt-3 border border-red-300 text-red-500 py-2 rounded-lg hover:bg-red-50 transition text-sm">
-            Desactivar usuario
+          </div>
+
+          <div>
+            <label style={labelStyle}>Usuario (email)</label>
+            <input type="text" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Nueva contraseña <span style={{ fontWeight: 400 }}>(opcional)</span></label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Rol</label>
+            <select value={rolId} onChange={e => setRolId(e.target.value)} style={inputStyle}>
+              <option value="">Seleccionar rol</option>
+              {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', marginTop: 4 }}
+          >
+            Guardar cambios
           </button>
-        </div>
+        </form>
+
+        <button
+          onClick={handleDesactivar}
+          style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', marginTop: 10 }}
+        >
+          Desactivar usuario
+        </button>
       </div>
     </div>
   )
 }
-
-export default EditarUsuario

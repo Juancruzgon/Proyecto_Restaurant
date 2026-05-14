@@ -3,11 +3,13 @@ from fastapi import FastAPI, Depends, HTTPException
 from database import get_session
 from sqlmodel import Session, select
 from models.usuario import Usuario
+from models.estado import EstadoMesa, EstadoPedido
+from models.recordatorio import Recordatorio
 from auth import verificar_password, crear_token
 from fastapi.security import OAuth2PasswordRequestForm 
 from websocket_manager import manager
 from fastapi import WebSocket
-from routers import producto, usuario, mesa, categoria_producto, categoria_gasto, gasto, salon, categoria_insumo, insumo, pedido, rol, promocion
+from routers import producto, usuario, mesa, categoria_producto, categoria_gasto, gasto, salon, categoria_insumo, insumo, pedido, rol, promocion, recordatorio, receta
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -23,6 +25,8 @@ app.include_router(salon.router)
 app.include_router(categoria_insumo.router)
 app.include_router(insumo.router)
 app.include_router(promocion.router)
+app.include_router(recordatorio.router)
+app.include_router(receta.router)
 
 app.add_middleware(
     CORSMiddleware,

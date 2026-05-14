@@ -2,118 +2,232 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getInsumo, crearInsumo, agregarCompra } from '../services/api'
 
-function CategoriaInsumos() {
-  const [insumos, setInsumos] = useState([])
-  const [mostrarFormulario, setMostrarFormulario] = useState(false)
-  const [nombre, setNombre] = useState('')
-  const [precio, setPrecio] = useState(0)
-  const [descripcion, setDescripcion] = useState('')
-  const [cantidadCompra, setCantidadCompra] = useState({})
+const WINE       = '#7C2D12'
+const WINE_LIGHT = '#FEF2EE'
+
+const UNIDADES = ['unidad', 'kg', 'gr', 'litros', 'ml', 'docena']
+
+const inputStyle = {
+  width: '100%', padding: '9px 12px',
+  border: '1px solid #EDE0DB', borderRadius: 9,
+  fontSize: 13, outline: 'none',
+  fontFamily: 'inherit', color: '#1A0A06', background: '#fff',
+}
+
+const labelStyle = {
+  fontSize: 12, fontWeight: 600,
+  color: '#A0786A', marginBottom: 5, display: 'block',
+}
+
+function stockStyle(stock) {
+  if (stock <= 0) return { bg: '#FEE2E2', color: '#991B1B', label: 'Sin stock' }
+  if (stock <= 3) return { bg: '#FEF9C3', color: '#854D0E', label: `Stock: ${stock}` }
+  return                 { bg: '#DCFCE7', color: '#166534', label: `Stock: ${stock}` }
+}
+
+export default function CategoriaInsumos() {
   const { categoriaId } = useParams()
-  const navigate = useNavigate()
+  const navigate        = useNavigate()
 
-  useEffect(() => {
-    getInsumo(categoriaId).then(data => setInsumos(data))
-  }, [categoriaId])
+  const [insumos,           setInsumos]           = useState([])
+  const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [nombre,            setNombre]            = useState('')
+  const [precio,            setPrecio]            = useState('')
+  const [descripcion,       setDescripcion]       = useState('')
+  const [unidadMedida,      setUnidadMedida]      = useState('unidad')
 
-  const handleCrearInsumo = () => {
+  // Compra por insumo: { [insumoId]: { cantidad, monto } }
+  const [compras, setCompras] = useState({})
+  // Control de qué insumo tiene el formulario de compra abierto
+  const [comprAbierta, setComprAbierta] = useState(null)
+
+  const cargar = () => getInsumo(categoriaId).then(data => setInsumos(data))
+  useEffect(() => { cargar() }, [categoriaId])
+
+  const handleCrear = () => {
+    if (!nombre.trim()) return
     crearInsumo({
       nombre,
-      precio: parseFloat(precio),
+      precio: parseFloat(precio) || 0,
       descripcion,
-      categoria_id: parseInt(categoriaId),
-      stock_actual: 0,
-      nro_insumo: insumos.length + 1
+      categoria_id:  parseInt(categoriaId),
+      stock_actual:  0,
+      nro_insumo:    insumos.length + 1,
+      unidad_medida: unidadMedida,
     }).then(() => {
-      getInsumo(categoriaId).then(data => setInsumos(data))
-      setNombre(''); setPrecio(0); setDescripcion('')
+      cargar()
+      setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad')
       setMostrarFormulario(false)
     })
   }
 
-  const handleAgregarCompra = (insumoId) => {
-    const cantidad = cantidadCompra[insumoId]
-    if (!cantidad || cantidad <= 0) return
-    agregarCompra(insumoId, cantidad).then(() => {
-      getInsumo(categoriaId).then(data => setInsumos(data))
-      setCantidadCompra({ ...cantidadCompra, [insumoId]: '' })
-    })
+  const handleCompra = async (insumo) => {
+    const c = compras[insumo.id] || {}
+    if (!c.cantidad || !c.monto) return
+    await agregarCompra(insumo.id, parseFloat(c.cantidad), parseFloat(c.monto))
+    cargar()
+    setCompras(prev => ({ ...prev, [insumo.id]: { cantidad: '', monto: '' } }))
+    setComprAbierta(null)
   }
 
-  const getStockClasses = (stock) => {
-    if (stock <= 0) return 'bg-red-100 text-red-800'
-    if (stock <= 3) return 'bg-yellow-100 text-yellow-800'
-    return 'bg-green-100 text-green-800'
-  }
-
-  const getStockLabel = (stock) => {
-    if (stock <= 0) return 'Sin stock'
-    return `Stock: ${stock}`
+  const setCompraField = (insumoId, field, value) => {
+    setCompras(prev => ({
+      ...prev,
+      [insumoId]: { ...prev[insumoId], [field]: value }
+    }))
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold !text-orange-500">Insumos</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
+    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Insumos</div>
+          <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{insumos.length} insumos</div>
         </div>
+        <button
+          onClick={() => setMostrarFormulario(true)}
+          style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Nuevo insumo
+        </button>
       </div>
 
-      <div className="max-w-2xl mx-auto mt-6 px-4">
-        <div className="flex flex-col gap-3 mb-4">
-          {insumos.map(insumo => (
-            <div key={insumo.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-gray-700">{insumo.nombre}</span>
-                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${getStockClasses(insumo.stock_actual)}`}>
-                  {getStockLabel(insumo.stock_actual)}
-                </span>
-              </div>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="number"
-                  placeholder="Cantidad"
-                  value={cantidadCompra[insumo.id] || ''}
-                  onChange={(e) => setCantidadCompra({ ...cantidadCompra, [insumo.id]: parseInt(e.target.value) })}
-                  min="1"
-                  className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-                <button
-                  onClick={() => handleAgregarCompra(insumo.id)}
-                  className="text-sm bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 transition"
-                >
-                  + Compra
-                </button>
-                <button
-                  onClick={() => navigate(`/insumos/${categoriaId}/${insumo.id}`)}
-                  className="text-sm text-orange-500 border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition"
-                >
-                  Editar
-                </button>
+      {/* Formulario nuevo insumo */}
+      {mostrarFormulario && (
+        <div style={{ background: '#fff', border: `1px solid ${WINE}`, borderRadius: 14, padding: '20px', marginBottom: 20, maxWidth: 480 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 16 }}>Nuevo insumo</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Nombre</label>
+              <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Precio referencia</label>
+              <input type="number" value={precio} onChange={e => setPrecio(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Unidad de medida</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {UNIDADES.map(u => (
+                  <button key={u} type="button" onClick={() => setUnidadMedida(u)}
+                    style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', border: `1px solid ${unidadMedida === u ? WINE : '#EDE0DB'}`, background: unidadMedida === u ? WINE_LIGHT : '#fff', color: unidadMedida === u ? WINE : '#5C3A2E', fontSize: 12, fontWeight: unidadMedida === u ? 600 : 400 }}>
+                    {u}
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-
-        {mostrarFormulario ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h2 className="font-semibold text-gray-700 mb-3">Nuevo insumo</h2>
-            <div className="flex flex-col gap-2 mb-3">
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input type="number" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="Precio" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Descripción" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleCrearInsumo} className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-semibold hover:bg-orange-600 transition text-sm">Confirmar</button>
-              <button onClick={() => setMostrarFormulario(false)} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 transition text-sm">Cancelar</button>
+            <div>
+              <label style={labelStyle}>Descripción</label>
+              <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
           </div>
-        ) : (
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '10px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Grid insumos */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+        {insumos.map(insumo => {
+          const st      = stockStyle(insumo.stock_actual)
+          const abierta = comprAbierta === insumo.id
+          const c       = compras[insumo.id] || {}
+
+          return (
+            <div key={insumo.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px' }}>
+
+              {/* Fila superior */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{insumo.nombre}</div>
+                  <div style={{ fontSize: 11, color: '#A0786A', marginTop: 2 }}>
+                    {insumo.unidad_medida && (
+                      <span style={{ background: '#F3F4F6', borderRadius: 6, padding: '1px 7px', marginRight: 4 }}>{insumo.unidad_medida}</span>
+                    )}
+                    {insumo.descripcion}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: st.bg, color: st.color }}>
+                    {st.label}
+                  </div>
+                  <button
+                    onClick={() => navigate(`/insumos/${categoriaId}/${insumo.id}`)}
+                    style={{ background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 7, padding: '5px 9px', fontSize: 12, cursor: 'pointer' }}
+                  >✎</button>
+                </div>
+              </div>
+
+              {/* Botón registrar compra / formulario */}
+              {!abierta ? (
+                <button
+                  onClick={() => setComprAbierta(insumo.id)}
+                  style={{ width: '100%', background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  + Registrar compra
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#A0786A', marginBottom: 3 }}>
+                        Cantidad ({insumo.unidad_medida || 'unidad'})
+                      </div>
+                      <input
+                        autoFocus
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={c.cantidad || ''}
+                        onChange={e => setCompraField(insumo.id, 'cantidad', e.target.value)}
+                        style={{ width: '100%', padding: '7px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: '#A0786A', marginBottom: 3 }}>
+                        Precio pagado ($)
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={c.monto || ''}
+                        onChange={e => setCompraField(insumo.id, 'monto', e.target.value)}
+                        style={{ width: '100%', padding: '7px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => handleCompra(insumo)}
+                      disabled={!c.cantidad || !c.monto}
+                      style={{ flex: 1, background: c.cantidad && c.monto ? WINE : '#E5D5D0', color: '#fff', border: 'none', borderRadius: 8, padding: '8px', fontSize: 12, fontWeight: 600, cursor: c.cantidad && c.monto ? 'pointer' : 'default' }}
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={() => { setComprAbierta(null); setCompraField(insumo.id, 'cantidad', ''); setCompraField(insumo.id, 'monto', '') }}
+                      style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 8, padding: '8px', fontSize: 12, cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {!mostrarFormulario && (
           <button
             onClick={() => setMostrarFormulario(true)}
-            className="w-full border-2 border-dashed border-gray-300 text-gray-400 py-3 rounded-xl hover:border-orange-400 hover:text-orange-400 transition"
+            style={{ background: 'none', border: '2px dashed #EDE0DB', borderRadius: 14, padding: '16px 18px', cursor: 'pointer', color: '#C09080', fontSize: 13, fontWeight: 500 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = WINE; e.currentTarget.style.color = WINE }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#EDE0DB'; e.currentTarget.style.color = '#C09080' }}
           >
             + Agregar insumo
           </button>
@@ -122,5 +236,3 @@ function CategoriaInsumos() {
     </div>
   )
 }
-
-export default CategoriaInsumos

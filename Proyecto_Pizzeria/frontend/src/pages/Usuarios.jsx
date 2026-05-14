@@ -1,91 +1,143 @@
+// Usuarios.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUsuarios, getRoles, crearUsuario } from '../services/api'
 
-function Usuarios() {
-  const [usuarios, setUsuarios] = useState([])
-  const [roles, setRoles] = useState([])
-  const [mostrarFormulario, setMostrarFormulario] = useState(false)
-  const [nombre, setNombre] = useState('')
-  const [apellido, setApellido] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [rolId, setRolId] = useState('')
-  const navigate = useNavigate()
+const WINE       = '#7C2D12'
+const WINE_LIGHT = '#FEF2EE'
 
-  useEffect(() => {
+const inputStyle = {
+  width: '100%', padding: '9px 12px',
+  border: '1px solid #EDE0DB', borderRadius: 9,
+  fontSize: 13, outline: 'none',
+  fontFamily: 'inherit', color: '#1A0A06', background: '#fff',
+}
+
+const labelStyle = {
+  fontSize: 12, fontWeight: 600,
+  color: '#A0786A', marginBottom: 5, display: 'block',
+}
+
+export default function Usuarios() {
+  const navigate = useNavigate()
+  const [usuarios,         setUsuarios]         = useState([])
+  const [roles,            setRoles]            = useState([])
+  const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [nombre,           setNombre]           = useState('')
+  const [apellido,         setApellido]         = useState('')
+  const [email,            setEmail]            = useState('')
+  const [password,         setPassword]         = useState('')
+  const [rolId,            setRolId]            = useState('')
+
+  const cargar = () => {
     getUsuarios().then(data => setUsuarios(data))
     getRoles().then(data => setRoles(data))
-  }, [])
+  }
+  useEffect(() => { cargar() }, [])
 
-  const handleCrearUsuario = () => {
+  const handleCrear = () => {
+    if (!nombre.trim() || !email.trim() || !password.trim() || !rolId) return
     crearUsuario({ nombre, apellido, email, password, rol_id: parseInt(rolId) }).then(() => {
-      getUsuarios().then(data => setUsuarios(data))
+      cargar()
       setNombre(''); setApellido(''); setEmail(''); setPassword(''); setRolId('')
       setMostrarFormulario(false)
     })
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold !text-orange-500">Usuarios</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">← Volver</button>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 transition">Inicio</button>
+    <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.4px' }}>Usuarios</div>
+          <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{usuarios.length} usuarios</div>
         </div>
+        <button
+          onClick={() => setMostrarFormulario(true)}
+          style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Nuevo usuario
+        </button>
       </div>
 
-      <div className="max-w-2xl mx-auto mt-6 px-4">
-        <div className="flex flex-col gap-3 mb-4">
-          {usuarios.map(u => {
-            const rol = roles.find(r => r.id === u.rol_id)
-            return (
-              <div key={u.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-700">{u.nombre} {u.apellido}</p>
-                  <p className="text-sm text-gray-500">{u.email} · {rol?.nombre}</p>
-                </div>
-                <button
-                  onClick={() => navigate(`/usuarios/${u.id}/editar`)}
-                  className="text-sm text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition"
-                >
-                  Modificar
-                </button>
+      {/* Formulario nuevo usuario */}
+      {mostrarFormulario && (
+        <div style={{ background: '#fff', border: `1px solid ${WINE}`, borderRadius: 14, padding: '20px', marginBottom: 20, maxWidth: 480 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 16 }}>Nuevo usuario</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Nombre</label>
+                <input autoFocus value={nombre} onChange={e => setNombre(e.target.value)} style={inputStyle} />
               </div>
-            )
-          })}
-        </div>
-
-        {mostrarFormulario ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h2 className="font-semibold text-gray-700 mb-3">Nuevo usuario</h2>
-            <div className="flex flex-col gap-2 mb-3">
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input value={apellido} onChange={(e) => setApellido(e.target.value)} placeholder="Apellido" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <select value={rolId} onChange={(e) => setRolId(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+              <div>
+                <label style={labelStyle}>Apellido</label>
+                <input value={apellido} onChange={e => setApellido(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Usuario (email)</label>
+              <input type="text" value={email} onChange={e => setEmail(e.target.value)} placeholder="ej: juan@pizzeria.com" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Contraseña</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Rol</label>
+              <select value={rolId} onChange={e => setRolId(e.target.value)} style={inputStyle}>
                 <option value="">Seleccionar rol</option>
                 {roles.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
               </select>
             </div>
-            <div className="flex gap-2">
-              <button onClick={handleCrearUsuario} className="flex-1 bg-orange-500 text-white py-2 rounded-lg font-semibold hover:bg-orange-600 transition text-sm">Confirmar</button>
-              <button onClick={() => setMostrarFormulario(false)} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 transition text-sm">Cancelar</button>
-            </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setMostrarFormulario(true)}
-            className="w-full border-2 border-dashed border-gray-300 text-gray-400 py-3 rounded-xl hover:border-orange-400 hover:text-orange-400 transition"
-          >
-            + Nuevo usuario
-          </button>
-        )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombre(''); setApellido(''); setEmail(''); setPassword(''); setRolId('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '10px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista usuarios */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+        {usuarios.map(u => {
+          const rol    = roles.find(r => r.id === u.rol_id)
+          const inicial = u.nombre ? u.nombre.charAt(0).toUpperCase() : '?'
+          return (
+            <div key={u.id} style={{
+              background: '#fff', border: '1px solid #EDE0DB',
+              borderRadius: 14, padding: '16px 18px',
+              display: 'flex', alignItems: 'center', gap: 14,
+              opacity: u.activo ? 1 : 0.5,
+            }}>
+              <div style={{
+                width: 42, height: 42, borderRadius: '50%',
+                background: WINE_LIGHT,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, fontWeight: 700, color: WINE, flexShrink: 0,
+              }}>
+                {inicial}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>
+                  {u.nombre} {u.apellido}
+                  {!u.activo && <span style={{ fontSize: 10, color: '#9CA3AF', marginLeft: 6 }}>Inactivo</span>}
+                </div>
+                <div style={{ fontSize: 12, color: '#A0786A', marginTop: 1 }}>
+                  {u.email} · {rol?.nombre || '—'}
+                </div>
+              </div>
+              <button
+                onClick={() => navigate(`/usuarios/${u.id}/editar`)}
+                style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+              >
+                Editar
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
-
-export default Usuarios
