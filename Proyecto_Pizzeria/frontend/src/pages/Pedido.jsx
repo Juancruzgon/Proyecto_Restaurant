@@ -17,11 +17,6 @@ const ESTADOS = {
   4: { label: 'Pagado',    bg: '#F3F4F6', color: '#6B7280' },
 }
 
-const ESTADO_ACCIONES = {
-  2: { label: 'Marcar como listo →',  bg: '#16A34A' },
-  3: { label: 'Marcar como pagado →', bg: WINE      },
-}
-
 const TIPO_ICONS = { Salon: '🍽️', Takeaway: '🥡', Delivery: '🛵' }
 
 function fmtPeso(val) {
@@ -29,10 +24,10 @@ function fmtPeso(val) {
 }
 
 export default function Pedido() {
-  const { mesaId }     = useParams()
-  const [searchParams] = useSearchParams()
-  const navigate       = useNavigate()
-  const usuarioId      = localStorage.getItem('usuario_id')
+  const { mesaId, pedidoId } = useParams()
+  const [searchParams]       = useSearchParams()
+  const navigate             = useNavigate()
+  const usuarioId            = localStorage.getItem('usuario_id')
 
   const tipoPedido = searchParams.get('tipo') || 'Salon'
   const pagerParam = searchParams.get('pager') || null
@@ -50,11 +45,25 @@ export default function Pedido() {
   const [buscador,      setBuscador]      = useState('')
   const [itemsTemp,     setItemsTemp]     = useState([])
 
-  const [notaActiva, setNotaActiva] = useState(null)
-  const [notaInput,  setNotaInput]  = useState('')
-  const [imprimiendo, setImprimiendo] = useState(false)
+  const [notaActiva,        setNotaActiva]        = useState(null)
+  const [notaInput,         setNotaInput]         = useState('')
+  const [imprimiendo,       setImprimiendo]       = useState(false)
+  const [mostrarModalCobro, setMostrarModalCobro] = useState(false)
+  const [pagos,             setPagos]             = useState([{ metodo: 'efectivo', monto: '' }])
+  const [errorCobro,        setErrorCobro]        = useState('')
 
   const cargarPedido = useCallback(async () => {
+    if (pedidoId) {
+      const { data } = await api.get(`/pedidos/${pedidoId}`)
+      setPedido(data)
+      const d = await getDetallePedido(data.id)
+      setDetalles(d)
+      if (data.usuario_id) {
+        const u = await getUsuarioPorId(data.usuario_id)
+        setMozo(u)
+      }
+      return
+    }
     if (!esSalon) return
     const data = await getPedidosPorMesa(mesaId)
     if (data.length > 0) {
@@ -69,7 +78,7 @@ export default function Pedido() {
     } else {
       setPedido(null); setDetalles([]); setMozo(null)
     }
-  }, [mesaId, esSalon])
+  }, [mesaId, pedidoId, esSalon])
 
   useEffect(() => {
     getCategorias().then(data => {
@@ -80,7 +89,7 @@ export default function Pedido() {
     const ws = new WebSocket('ws://localhost:8000/ws')
     ws.onmessage = () => cargarPedido()
     return () => ws.close()
-  }, [mesaId, cargarPedido])
+  }, [mesaId, pedidoId, cargarPedido])
 
   useEffect(() => {
     if (!catRaiz) return
@@ -178,25 +187,46 @@ export default function Pedido() {
   const handleAvanzarEstado = async () => {
     if (!pedido) return
     await cambiarEstadoPedido(pedido.id)
-    if (pedido.estado_id === 3) {
-      // Al pagar Salón imprimir ticket automáticamente
-      try { await imprimirTicket(pedido.id) } catch (e) { console.error(e) }
-      navigate(esSalon ? '/mesas' : '/pedidos')
-    } else {
-      cargarPedido()
-    }
+    cargarPedido()
   }
 
-  const handleCobrarTakeaway = async () => {
-    if (!window.confirm('¿Cobrar y cerrar este pedido?')) return
+  const handleCobrar = async () => {
+    setErrorCobro('')
+    const pagosValidos = pagos.filter(p => p.monto && parseFloat(p.monto) > 0)
+    if (pagosValidos.length === 0) { setErrorCobro('Ingresá al menos un monto'); return }
+    const totalPagado = pagosValidos.reduce((acc, p) => acc + parseFloat(p.monto), 0)
+    if (totalPagado < parseFloat(pedido.total)) {
+      setErrorCobro(`Falta cubrir ${fmtPeso(parseFloat(pedido.total) - totalPagado)}`)
+      return
+    }
     setImprimiendo(true)
     try {
-      await api.put(`/pedidos/${pedido.id}/cobrar`)
+      await api.put(`/pedidos/${pedido.id}/cobrar`, {
+        pagos: pagosValidos.map(p => ({ metodo: p.metodo, monto: parseFloat(p.monto) }))
+      })
       try { await imprimirTicket(pedido.id) } catch (e) { console.error(e) }
-      navigate('/pedidos')
+      navigate(esSalon ? '/mesas' : '/pedidos')
+    } catch (e) {
+      setErrorCobro(e.response?.data?.detail || 'Error al cobrar')
     } finally {
       setImprimiendo(false)
     }
+  }
+
+  const agregarMetodoPago = () => {
+    setPagos(prev => [...prev, { metodo: 'efectivo', monto: '' }])
+  }
+
+  const actualizarPago = (idx, field, value) => {
+    setPagos(prev => {
+      const c = [...prev]
+      c[idx] = { ...c[idx], [field]: value }
+      return c
+    })
+  }
+
+  const eliminarPago = (idx) => {
+    setPagos(prev => prev.filter((_, i) => i !== idx))
   }
 
   const handleImprimirComanda = async () => {
@@ -211,18 +241,120 @@ export default function Pedido() {
     navigate(esSalon ? '/mesas' : '/pedidos')
   }
 
-  const totalTemp = itemsTemp.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0)
-  const est    = pedido ? ESTADOS[pedido.estado_id] : null
-  const accion = pedido ? ESTADO_ACCIONES[pedido.estado_id] : null
+  const totalTemp  = itemsTemp.reduce((acc, i) => acc + Number(i.precio) * i.cantidad, 0)
+  const est        = pedido ? ESTADOS[pedido.estado_id] : null
 
-  const tituloPanel = esSalon
-    ? `Mesa ${mesaId}`
-    : tipoPedido === 'Takeaway'
-      ? `Takeaway${pagerParam ? ` · Pager ${pagerParam}` : ''}`
-      : 'Delivery'
+  const tituloPanel = pedidoId
+    ? pedido
+      ? `${pedido.tipo_pedido}${pedido.pager ? ` · Pager ${pedido.pager}` : ''}`
+      : tipoPedido
+    : esSalon
+      ? `Mesa ${mesaId}`
+      : tipoPedido === 'Takeaway'
+        ? `Takeaway${pagerParam ? ` · Pager ${pagerParam}` : ''}`
+        : 'Delivery'
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: "'DM Sans', sans-serif", overflow: 'hidden' }}>
+
+      {/* Modal cobro */}
+      {mostrarModalCobro && pedido && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: '#fff', borderRadius: 18, padding: '28px', width: 400, maxWidth: '90vw' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06', marginBottom: 4 }}>Cobrar pedido</div>
+            <div style={{ fontSize: 13, color: '#A0786A', marginBottom: 20 }}>
+              Total: <strong style={{ color: '#1A0A06' }}>{fmtPeso(pedido.total)}</strong>
+            </div>
+
+            {/* Líneas de pago */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {pagos.map((p, i) => {
+                const totalCubierto = pagos.reduce((acc, x, xi) => xi !== i ? acc + (parseFloat(x.monto) || 0) : acc, 0)
+                const restante = Math.max(0, parseFloat(pedido.total) - totalCubierto)
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+                      {['efectivo', 'tarjeta', 'qr'].map(m => (
+                        <button key={m} onClick={() => actualizarPago(i, 'metodo', m)}
+                          style={{ flex: 1, padding: '8px 4px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${p.metodo === m ? WINE : '#EDE0DB'}`, background: p.metodo === m ? WINE_LIGHT : '#fff', color: p.metodo === m ? WINE : '#5C3A2E', fontSize: 11, fontWeight: p.metodo === m ? 600 : 400 }}>
+                          {m === 'efectivo' ? '💵 Efectivo' : m === 'tarjeta' ? '💳 Tarjeta' : '📱 QR'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="number"
+                      value={p.monto}
+                      onChange={e => actualizarPago(i, 'monto', e.target.value)}
+                      onFocus={() => { if (!p.monto && restante > 0) actualizarPago(i, 'monto', restante.toFixed(0)) }}
+                      placeholder="Monto"
+                      style={{ width: 90, padding: '8px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }}
+                    />
+                    {pagos.length > 1 && (
+                      <button onClick={() => eliminarPago(i)} style={{ background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 7, padding: '7px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Agregar método */}
+            {pagos.length < 3 && (
+              <button onClick={agregarMetodoPago}
+                style={{ width: '100%', background: 'none', border: '1px dashed #EDE0DB', borderRadius: 9, padding: '8px', fontSize: 12, color: '#A0786A', cursor: 'pointer', marginBottom: 16 }}>
+                + Agregar otro método de pago
+              </button>
+            )}
+
+            {/* Resumen */}
+            {(() => {
+              const totalPagado = pagos.reduce((acc, p) => acc + (parseFloat(p.monto) || 0), 0)
+              const diferencia  = totalPagado - parseFloat(pedido.total)
+              return (
+                <div style={{ background: '#F8F5F4', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1A0A06', marginBottom: diferencia !== 0 ? 6 : 0 }}>
+                    <span>Total cobrado</span>
+                    <span style={{ fontWeight: 700 }}>{fmtPeso(totalPagado)}</span>
+                  </div>
+                  {diferencia > 0 && pagos.some(p => p.metodo === 'efectivo') && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#166534', fontWeight: 600 }}>
+                      <span>Vuelto</span>
+                      <span>{fmtPeso(diferencia)}</span>
+                    </div>
+                  )}
+                  {diferencia < 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#EF4444', fontWeight: 600 }}>
+                      <span>Falta cubrir</span>
+                      <span>{fmtPeso(Math.abs(diferencia))}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {errorCobro && (
+              <div style={{ fontSize: 12, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                {errorCobro}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { setMostrarModalCobro(false); setPagos([{ metodo: 'efectivo', monto: '' }]); setErrorCobro('') }}
+                style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '11px', fontSize: 13, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCobrar}
+                disabled={imprimiendo}
+                style={{ flex: 2, background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: imprimiendo ? 'default' : 'pointer', opacity: imprimiendo ? 0.7 : 1 }}
+              >
+                {imprimiendo ? 'Procesando...' : '✓ Confirmar cobro'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ PANEL IZQUIERDO — Carta ═══ */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F5F4', overflow: 'hidden' }}>
@@ -293,12 +425,11 @@ export default function Pedido() {
 
       {/* ═══ PANEL DERECHO — Detalle pedido ═══ */}
       <div style={{ width: 340, minWidth: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', borderLeft: '1px solid #EDE0DB', background: '#fff' }}>
-
         <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #EDE0DB' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{TIPO_ICONS[tipoPedido]}</span>
+                <span style={{ fontSize: 18 }}>{TIPO_ICONS[tipoPedido] || '🥡'}</span>
                 <span style={{ fontSize: 17, fontWeight: 700, color: '#1A0A06', letterSpacing: '-0.3px' }}>{tituloPanel}</span>
               </div>
               {pedido && (
@@ -394,30 +525,26 @@ export default function Pedido() {
           {pedido ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-              {/* Avanzar estado normal */}
-              {accion && (
-                <button onClick={handleAvanzarEstado} style={{ background: accion.bg, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
-                  {accion.label}
+              {/* Marcar como listo — solo estado 2 */}
+              {pedido.estado_id === 2 && (
+                <button onClick={handleAvanzarEstado} style={{ background: '#16A34A', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  Marcar como listo →
                 </button>
               )}
 
-              {/* Cobro anticipado Takeaway — disponible desde En cocina */}
-              {tipoPedido === 'Takeaway' && pedido.estado_id === 2 && (
+              {/* Cobrar — estado 3 o Takeaway/Delivery en estado 2 o 3 */}
+              {(pedido.estado_id === 3 || ((pedido.tipo_pedido === 'Takeaway' || pedido.tipo_pedido === 'Delivery') && pedido.estado_id === 2)) && (
                 <button
-                  onClick={handleCobrarTakeaway}
+                  onClick={() => setMostrarModalCobro(true)}
                   disabled={imprimiendo}
-                  style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}
+                  style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%' }}
                 >
-                  {imprimiendo ? 'Procesando...' : '💳 Cobrar e imprimir ticket'}
+                  💳 Cobrar
                 </button>
               )}
 
-              {/* Imprimir comanda manual */}
-              <button
-                onClick={handleImprimirComanda}
-                disabled={imprimiendo}
-                style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}
-              >
+              <button onClick={handleImprimirComanda} disabled={imprimiendo}
+                style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}>
                 🖨 Reimprimir comanda
               </button>
 
@@ -426,7 +553,8 @@ export default function Pedido() {
               </button>
             </div>
           ) : (
-            <button onClick={handleCrearPedido} disabled={itemsTemp.length === 0} style={{ background: itemsTemp.length > 0 ? WINE : '#E5D5D0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: itemsTemp.length > 0 ? 'pointer' : 'default', width: '100%' }}>
+            <button onClick={handleCrearPedido} disabled={itemsTemp.length === 0}
+              style={{ background: itemsTemp.length > 0 ? WINE : '#E5D5D0', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', fontSize: 13, fontWeight: 600, cursor: itemsTemp.length > 0 ? 'pointer' : 'default', width: '100%' }}>
               Crear pedido
             </button>
           )}

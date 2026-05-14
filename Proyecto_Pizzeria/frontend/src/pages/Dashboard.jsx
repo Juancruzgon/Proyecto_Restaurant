@@ -38,39 +38,40 @@ export default function Dashboard() {
   const [pedidos,        setPedidos]        = useState([])
   const [mesas,          setMesas]          = useState([])
   const [caja,           setCaja]           = useState(null)
+  const [pedidosPagados, setPedidosPagados] = useState([])
   const [loading,        setLoading]        = useState(true)
   const [recordatorios,  setRecordatorios]  = useState([])
   const [mostrarRec,     setMostrarRec]     = useState(true)
   const [nuevoTitulo,    setNuevoTitulo]    = useState('')
   const [nuevoDesc,      setNuevoDesc]      = useState('')
   const [mostrarFormRec, setMostrarFormRec] = useState(false)
-  
 
-const cargar = useCallback(async () => {
-  try {
-    const [resPedidos, resMesas, resRec, resCaja] = await Promise.all([
-      api.get('/pedidos/'),
-      api.get('/mesas/'),
-      api.get('/recordatorios/'),
-      api.get('/caja/activa'),
-    ])
-    const cajaData = resCaja.data
-    setPedidos(resPedidos.data.filter(p => p.activo))
-    setMesas(resMesas.data.filter(m => m.activo))
-    setRecordatorios(resRec.data)
-    setCaja(cajaData)
+  const cargar = useCallback(async () => {
+    try {
+      const [resPedidos, resMesas, resRec, resCaja] = await Promise.all([
+        api.get('/pedidos/'),
+        api.get('/mesas/'),
+        api.get('/recordatorios/'),
+        api.get('/caja/activa'),
+      ])
+      const cajaData = resCaja.data
+      setPedidos(resPedidos.data.filter(p => p.activo))
+      setMesas(resMesas.data.filter(m => m.activo))
+      setRecordatorios(resRec.data)
+      setCaja(cajaData)
 
-    // Traer pagados del turno
-    if (cajaData?.id) {
-      const resPagados = await api.get(`/pedidos/?caja_id=${cajaData.id}&pagados=true`)
-      setPedidosPagados(resPagados.data)
+      if (cajaData?.id) {
+        const resPagados = await api.get(`/pedidos/?caja_id=${cajaData.id}&pagados=true`)
+        setPedidosPagados(resPagados.data)
+      } else {
+        setPedidosPagados([])
+      }
+    } catch (e) {
+      console.error('Error cargando dashboard:', e)
+    } finally {
+      setLoading(false)
     }
-  } catch (e) {
-    console.error('Error cargando dashboard:', e)
-  } finally {
-    setLoading(false)
-  }
-}, [])
+  }, [])
 
   useEffect(() => { cargar() }, [cargar])
 
@@ -90,15 +91,8 @@ const cargar = useCallback(async () => {
   const pedidosAbiertos = pedidos.filter(p => p.estado_id !== ESTADO_PAGADO)
   const listosCobrar    = pedidos.filter(p => p.estado_id === ESTADO_LISTO)
   const mesasOcupadas   = mesas.filter(m => m.estado_id === MESA_OCUPADA)
-
-  // Ventas del turno activo (caja abierta) o del día si no hay caja
-  const [pedidosPagados, setPedidosPagados] = useState([])
-  const pedidosTurno   = caja
-    ? pedidosPagados.filter(p => p.caja_id === caja.id)
-    : pedidosPagados
-
-  const ventasTurno  = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
-  const labelVentas  = caja ? 'Ventas del turno' : 'Ventas hoy'
+  const ventasTurno     = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
+  const labelVentas     = caja ? 'Ventas del turno' : 'Ventas hoy'
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#A0786A', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>
@@ -230,7 +224,6 @@ const cargar = useCallback(async () => {
 
       {/* Dos paneles */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ padding: '16px 22px', borderBottom: '1px solid #EDE0DB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>Pedidos abiertos</span>
@@ -293,7 +286,13 @@ const cargar = useCallback(async () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(p.total)}</div>
                     <button
-                      onClick={() => p.mesa_id && navigate(`/pedido/${p.mesa_id}?tipo=Salon`)}
+                      onClick={() => {
+                        if (p.mesa_id) {
+                          navigate(`/pedido/${p.mesa_id}?tipo=Salon`)
+                        } else {
+                          navigate(`/pedido/takeaway/${p.id}?tipo=${p.tipo_pedido}${p.pager ? `&pager=${p.pager}` : ''}`)
+                        }
+                      }}
                       style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       Cobrar →

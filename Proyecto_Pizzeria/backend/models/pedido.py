@@ -16,6 +16,7 @@ class Pedido(SQLModel, table=True):
     activo: bool = Field(default=True)
     pager: Optional[str] = Field(default=None)
     caja_id: Optional[int] = Field(default=None, foreign_key="caja.id")
+    metodo_pago: Optional[str] = Field(default=None)
 
 class DetallePedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

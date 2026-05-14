@@ -159,21 +159,46 @@ def cambiar_estado_pedido(pedido_id: int, session: Session):
     return pedido_existente
 
 
-def cobrar_pedido(pedido_id: int, session: Session):
+def cobrar_pedido(pedido_id: int, pagos: list, session: Session):
+    from models.pago import Pago
+    from models.caja import Caja
+
     pedido_existente = session.exec(select(Pedido).where(Pedido.id == pedido_id)).first()
     if not pedido_existente:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    pedido_existente.estado_id = 4
-    pedido_existente.activo = False
+
+    # Validar que los pagos cubran el total
+    total_pagado = sum(float(p.monto) for p in pagos)
+    if total_pagado < float(pedido_existente.total):
+        raise HTTPException(status_code=400, detail="El monto pagado no cubre el total del pedido")
+
+    # Registrar pagos
+    metodos = list(set(p.metodo for p in pagos))
+    metodo_str = metodos[0] if len(metodos) == 1 else "mixto"
+
+    for pago in pagos:
+        nuevo_pago = Pago(
+            pedido_id=pedido_id,
+            metodo=pago.metodo,
+            monto=pago.monto,
+        )
+        session.add(nuevo_pago)
+
+    pedido_existente.estado_id   = 4
+    pedido_existente.activo      = False
+    pedido_existente.metodo_pago = metodo_str
+
     if pedido_existente.mesa_id:
         mesa = session.exec(select(Mesa).where(Mesa.id == pedido_existente.mesa_id)).first()
         if mesa:
             mesa.estado_id = 1
             session.add(mesa)
+
     detalles = session.exec(
         select(DetallePedido).where(DetallePedido.pedido_id == pedido_id)
     ).all()
     descontar_stock_pedido(pedido_id, detalles, session)
+
     session.add(pedido_existente)
     session.commit()
     session.refresh(pedido_existente)

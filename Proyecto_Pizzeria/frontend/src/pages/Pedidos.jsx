@@ -155,12 +155,19 @@ export default function Pedidos() {
             return (
               <div
                 key={p.id}
-                onClick={() => p.mesa_id && p.estado_id !== 4 && navigate(`/pedido/${p.mesa_id}`)}
-                style={{
+                onClick={() => {
+                  if (p.estado_id === 4) return
+                  if (p.mesa_id) {
+                    navigate(`/pedido/${p.mesa_id}?tipo=Salon`)
+                  } else {
+                    navigate(`/pedido/takeaway/${p.id}?tipo=${p.tipo_pedido}${p.pager ? `&pager=${p.pager}` : ''}`)
+                  }
+                }}
+                                style={{
                   background: '#fff', border: '1px solid #EDE0DB',
                   borderRadius: 14, padding: '14px 20px',
                   display: 'flex', alignItems: 'center', gap: 14,
-                  cursor: p.mesa_id && p.estado_id !== 4 ? 'pointer' : 'default',
+                  cursor: p.estado_id !== 4 ? 'pointer' : 'default',
                 }}
                 onMouseEnter={e => { if (p.mesa_id && p.estado_id !== 4) e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,45,18,0.08)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}

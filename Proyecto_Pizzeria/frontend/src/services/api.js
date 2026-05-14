@@ -56,6 +56,7 @@ export const getProductos = async (categoriaId = null) => {
   return response.data
 }
 
+
 export const getProductoPorId = async (productoId) => {
   const response = await api.get(`/productos/${productoId}`)
   return response.data
@@ -319,5 +320,24 @@ export const cerrarCaja = async () => {
 
 export const getHistorialCajas = async () => {
   const response = await api.get('/caja/historial')
+  return response.data
+}
+export const getReporteVentas = async (desde, hasta) => {
+  const response = await api.get(`/reportes/ventas?desde=${desde}&hasta=${hasta}`)
+  return response.data
+}
+
+export const getReporteProducto = async (productoId, desde, hasta) => {
+  const response = await api.get(`/reportes/producto/${productoId}?desde=${desde}&hasta=${hasta}`)
+  return response.data
+}
+
+export const getReporteComparar = async (desde1, hasta1, desde2, hasta2) => {
+  const response = await api.get(`/reportes/comparar?desde1=${desde1}&hasta1=${hasta1}&desde2=${desde2}&hasta2=${hasta2}`)
+  return response.data
+}
+
+export const cobrarPedido = async (pedidoId, pagos) => {
+  const response = await api.put(`/pedidos/${pedidoId}/cobrar`, { pagos })
   return response.data
 }

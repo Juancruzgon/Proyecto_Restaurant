@@ -5,6 +5,7 @@ from database import get_session
 from models.usuario import Usuario
 from models.caja import Caja
 from schemas.pedido import PedidoCreate, PedidoModify, DetallePedidoCreate, DetallePedidoModifyNota
+from schemas.pago import CobrarPedidoRequest
 from crud.pedido import (
     obtener_pedidos as crud_obtener_pedidos,
     crear_pedido as crud_crear_pedido,
@@ -40,6 +41,15 @@ def obtener_pedidos(
 ):
     return crud_obtener_pedidos(session, mesa_id=mesa_id, caja_id=caja_id, pagados=pagados)
 
+
+@router.get("/{pedido_id}")
+def obtener_pedido(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    pedido = session.get(Pedido, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    return pedido
+
+
 @router.post("/")
 async def crear_pedido(pedido: PedidoCreate, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
     resultado = crud_crear_pedido(pedido, session)
@@ -72,8 +82,13 @@ async def cambiar_estado_pedido(pedido_id: int, session: Session = Depends(get_s
     return resultado
 
 @router.put("/{pedido_id}/cobrar")
-async def cobrar_pedido(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
-    resultado = crud_cobrar_pedido(pedido_id, session)
+async def cobrar_pedido(
+    pedido_id: int,
+    data: CobrarPedidoRequest,
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user)
+):
+    resultado = crud_cobrar_pedido(pedido_id, data.pagos, session)
     await manager.broadcast(json.dumps({"evento": "estado_pedido", "pedido_id": pedido_id, "estado_id": 4}))
     detalles = crud_mostrar_detalle_pedido(pedido_id, session)
     ip     = os.getenv("TICKET_PRINTER_IP")

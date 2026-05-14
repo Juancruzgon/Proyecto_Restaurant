@@ -19,6 +19,7 @@ import EditarInsumo from './pages/EditarInsumo'
 import Gastos from './pages/Gastos'
 import CategoriaGastos from './pages/CategoriaGastos'
 import PantallaCocina from './pages/PantallaCocina'
+import Reportes from './pages/Reportes'
 
 function W({ children }) {
   return <Layout>{children}</Layout>
@@ -52,6 +53,8 @@ function App() {
       <Route path="/gastos"                                 element={<W><Gastos /></W>} />
       <Route path="/gastos/:categoriaId"                    element={<W><CategoriaGastos /></W>} />
       <Route path="/cocina" element={<PantallaCocina />} />
+      <Route path="/reportes" element={<Layout><Reportes /></Layout>} />
+      <Route path="/pedido/takeaway/:pedidoId" element={<Layout><Pedido /></Layout>} />
 
     </Routes>
   )
