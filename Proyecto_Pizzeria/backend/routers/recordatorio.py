@@ -11,6 +11,10 @@ router = APIRouter(
     tags=["recordatorios"]
 )
 
+@router.get("/historial")
+def historial_recordatorios(session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    return session.exec(select(Recordatorio).order_by(Recordatorio.fecha.desc())).all()
+
 @router.get("/")
 def obtener_recordatorios(session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
     return session.exec(select(Recordatorio).where(Recordatorio.leido == False)).all()

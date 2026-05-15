@@ -5,7 +5,7 @@ import {
   cambiarEstadoPedido, eliminarDetalle, agregarDetalle,
   getCategorias, eliminarPedido, getUsuarioPorId,
   modificarCantidad, modificarNota, imprimirComanda, imprimirTicket,
-  getPagosParciales, registrarPagoParcial
+  getPagosParciales, registrarPagoParcial, imprimirNuevosProductos
 } from '../services/api'
 import api from '../services/api'
 
@@ -186,9 +186,14 @@ export default function Pedido() {
       await agregarDetalle(nuevo.id, i.producto_id, i.cantidad, i.nota || null)
     }
     setItemsTemp([])
+    // Imprimir comanda con todos los productos (también actualiza ultimo_detalle_impreso)
+    try { await imprimirComanda(nuevo.id) } catch (e) { console.error(e) }
     setPedido(nuevo)
     const d = await getDetallePedido(nuevo.id)
     setDetalles(d)
+    // Recargar pedido para obtener ultimo_detalle_impreso actualizado
+    const { data: pedidoActualizado } = await api.get(`/pedidos/${nuevo.id}`)
+    setPedido(pedidoActualizado)
   }
 
   const handleAvanzarEstado = async () => {
@@ -278,7 +283,22 @@ export default function Pedido() {
 
   const handleImprimirComanda = async () => {
     setImprimiendo(true)
-    try { await imprimirComanda(pedido.id) } catch (e) { console.error(e) }
+    try {
+      await imprimirComanda(pedido.id)
+      // Recargar pedido para sincronizar ultimo_detalle_impreso
+      const { data } = await api.get(`/pedidos/${pedido.id}`)
+      setPedido(data)
+    } catch (e) { console.error(e) }
+    finally { setImprimiendo(false) }
+  }
+
+  const handleImprimirNuevos = async () => {
+    setImprimiendo(true)
+    try {
+      await imprimirNuevosProductos(pedido.id)
+      const { data } = await api.get(`/pedidos/${pedido.id}`)
+      setPedido(data)
+    } catch (e) { console.error(e) }
     finally { setImprimiendo(false) }
   }
 
@@ -662,9 +682,15 @@ export default function Pedido() {
                   👥 Pago por ítem
                 </button>
               )}
+              {pedido && detalles.some(d => d.id > (pedido.ultimo_detalle_impreso || 0)) && (
+                <button onClick={handleImprimirNuevos} disabled={imprimiendo}
+                  style={{ background: '#FEF9C3', color: '#854D0E', border: '1px solid #FDE68A', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}>
+                  🖨 Imprimir nuevos productos
+                </button>
+              )}
               <button onClick={handleImprimirComanda} disabled={imprimiendo}
                 style={{ background: '#fff', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%', opacity: imprimiendo ? 0.7 : 1 }}>
-                🖨 Reimprimir comanda
+                🖨 Reimprimir comanda completa
               </button>
               <button onClick={handleCancelar}
                 style={{ background: 'none', color: '#EF4444', border: '1px solid #FECACA', borderRadius: 10, padding: '9px', fontSize: 13, fontWeight: 500, cursor: 'pointer', width: '100%' }}>

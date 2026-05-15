@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { getMesas, getSalones, eliminarMesa } from '../services/api'
+import api, { getMesas, getSalones, eliminarMesa, getCajaActiva } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -36,6 +36,7 @@ export default function MapaMesas() {
   const [salonActivo, setSalonActivo] = useState(null)
   const [modoEdicion, setModoEdicion] = useState(false)
   const [mesaHover,   setMesaHover]   = useState(null)
+  const [caja,        setCaja]        = useState(null)
 
   // Tamaño del canvas (salón)
   const [canvasW, setCanvasW] = useState(1200)
@@ -79,6 +80,7 @@ export default function MapaMesas() {
         cargarSalon(data[0].id, data)
       }
     })
+    getCajaActiva().then(data => setCaja(data)).catch(() => setCaja(null))
   }, [cargarSalon])
 
   useEffect(() => {
@@ -185,6 +187,7 @@ export default function MapaMesas() {
 
   const handleClickMesa = (mesa) => {
     if (modoEdicion) return
+    if (!caja?.id) { alert('No hay caja abierta. Pedí al admin que abra la caja para comenzar a operar.'); return }
     if (modoNuevo && mesa.estado_id !== 1) { alert('Mesa ocupada — elegí otra'); return }
     navigate(`/pedido/${mesa.id}?tipo=Salon`)
   }

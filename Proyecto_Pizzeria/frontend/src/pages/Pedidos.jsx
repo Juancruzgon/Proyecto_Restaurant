@@ -98,8 +98,10 @@ export default function Pedidos() {
           </div>
         </div>
         <button
-          onClick={() => navigate('/nuevo-pedido')}
-          style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+          onClick={() => caja?.id && navigate('/nuevo-pedido')}
+          disabled={!caja?.id}
+          title={!caja?.id ? 'No hay caja abierta' : ''}
+          style={{ background: caja?.id ? WINE : '#E5D5D0', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: caja?.id ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1 }}
         >
           + Nuevo pedido
         </button>

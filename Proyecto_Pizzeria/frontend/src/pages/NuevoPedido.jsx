@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api, { getSalones, getMesas } from '../services/api'
+import api, { getSalones, getMesas, getCajaActiva } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -32,6 +32,7 @@ export default function NuevoPedido() {
   const [salonActivo, setSalonActivo] = useState(null)
   const [mesas,       setMesas]       = useState([])
   const [pager,       setPager]       = useState('')
+  const [caja,        setCaja]        = useState(undefined) // undefined = loading
   const posiciones = useRef({})
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function NuevoPedido() {
       setSalones(data)
       if (data.length > 0) setSalonActivo(data[0].id)
     })
+    getCajaActiva().then(data => setCaja(data)).catch(() => setCaja(null))
   }, [])
 
   const cargarMesas = useCallback(async (salonId) => {
@@ -77,6 +79,24 @@ export default function NuevoPedido() {
       const pos = posiciones.current[m.id] || posInicial(i)
       return pos.y + MESA_H + GRID_GAP
     })
+  )
+
+  if (caja === undefined) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#A0786A', fontSize: 14, fontFamily: "'DM Sans', sans-serif" }}>
+      Cargando...
+    </div>
+  )
+
+  if (!caja?.id) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ textAlign: 'center', maxWidth: 380 }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#1A0A06', marginBottom: 8 }}>Caja cerrada</div>
+        <div style={{ fontSize: 14, color: '#A0786A', lineHeight: 1.5 }}>
+          No hay caja abierta. Pedí al admin que abra la caja para comenzar a operar.
+        </div>
+      </div>
+    </div>
   )
 
   return (

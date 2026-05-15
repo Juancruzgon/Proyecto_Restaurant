@@ -42,10 +42,12 @@ export default function CategoriaProductos() {
   const [insumoId,        setInsumoId]        = useState('')
 
   // Formulario subcategoría
-  const [mostrarCategoria,  setMostrarCategoria]  = useState(false)
-  const [nombreCategoria,   setNombreCategoria]   = useState('')
-  const [categoriaEditando, setCategoriaEditando] = useState(null)
-  const [nombreEditar,      setNombreEditar]      = useState('')
+  const [mostrarCategoria,    setMostrarCategoria]    = useState(false)
+  const [nombreCategoria,     setNombreCategoria]     = useState('')
+  const [imagenUrlCategoria,  setImagenUrlCategoria]  = useState('')
+  const [categoriaEditando,   setCategoriaEditando]   = useState(null)
+  const [nombreEditar,        setNombreEditar]        = useState('')
+  const [imagenUrlEditar,     setImagenUrlEditar]     = useState('')
 
   const cargarDatos = () => {
     getProductos(categoriaId).then(data => setProductos(data))
@@ -76,15 +78,16 @@ export default function CategoriaProductos() {
 
   const handleCrearCategoria = () => {
     if (!nombreCategoria.trim()) return
-    crearCategoria(nombreCategoria, '', categoriaId).then(() => {
+    crearCategoria(nombreCategoria, '', categoriaId, imagenUrlCategoria || null).then(() => {
       cargarDatos()
       setNombreCategoria('')
+      setImagenUrlCategoria('')
       setMostrarCategoria(false)
     })
   }
 
   const handleGuardarCategoria = (id) => {
-    modificarCategoria(id, { nombre: nombreEditar }).then(() => {
+    modificarCategoria(id, { nombre: nombreEditar, imagen_url: imagenUrlEditar || null }).then(() => {
       cargarDatos()
       setCategoriaEditando(null)
     })
@@ -121,10 +124,13 @@ export default function CategoriaProductos() {
       {mostrarCategoria && (
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '18px 20px', marginBottom: 16, maxWidth: 480 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 12 }}>Nueva subcategoría</div>
-          <input autoFocus value={nombreCategoria} onChange={e => setNombreCategoria(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCrearCategoria()} placeholder="Nombre" style={{ ...inputStyle, marginBottom: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+            <input autoFocus value={nombreCategoria} onChange={e => setNombreCategoria(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleCrearCategoria()} placeholder="Nombre" style={inputStyle} />
+            <input value={imagenUrlCategoria} onChange={e => setImagenUrlCategoria(e.target.value)} placeholder="URL de imagen (opcional)" style={inputStyle} />
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleCrearCategoria} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
-            <button onClick={() => { setMostrarCategoria(false); setNombreCategoria('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => { setMostrarCategoria(false); setNombreCategoria(''); setImagenUrlCategoria('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
       )}
@@ -216,23 +222,32 @@ export default function CategoriaProductos() {
           <div style={{ fontSize: 11, fontWeight: 600, color: '#C09080', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Subcategorías</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
             {subcategorias.map(c => (
-              <div key={c.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 13, padding: '14px 16px' }}>
-                {categoriaEditando === c.id ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input autoFocus value={nombreEditar} onChange={e => setNombreEditar(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleGuardarCategoria(c.id)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #EDE0DB', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }} />
-                    <button onClick={() => handleGuardarCategoria(c.id)} style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Guardar</button>
-                    <button onClick={() => setCategoriaEditando(null)} style={{ background: 'none', color: '#A0786A', border: '1px solid #EDE0DB', borderRadius: 7, padding: '6px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => navigate(`/productos/${c.id}`)} style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 7, padding: '5px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Ver →</button>
-                      <button onClick={() => { setCategoriaEditando(c.id); setNombreEditar(c.nombre) }} style={{ background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 7, padding: '5px 9px', fontSize: 12, cursor: 'pointer' }}>✎</button>
-                      <button onClick={() => handleEliminarCategoria(c.id)} style={{ background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 7, padding: '5px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+              <div key={c.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 13, overflow: 'hidden' }}>
+                {/* Imagen subcategoría */}
+                <div style={{ height: 60, background: c.imagen_url ? 'transparent' : '#F8F5F4', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {c.imagen_url ? <img src={c.imagen_url} alt={c.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 22 }}>🍽️</span>}
+                </div>
+                <div style={{ padding: '12px 14px' }}>
+                  {categoriaEditando === c.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      <input autoFocus value={nombreEditar} onChange={e => setNombreEditar(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleGuardarCategoria(c.id)} placeholder="Nombre" style={{ width: '100%', padding: '6px 10px', border: '1px solid #EDE0DB', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }} />
+                      <input value={imagenUrlEditar} onChange={e => setImagenUrlEditar(e.target.value)} placeholder="URL imagen (opcional)" style={{ width: '100%', padding: '6px 10px', border: '1px solid #EDE0DB', borderRadius: 7, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06' }} />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => handleGuardarCategoria(c.id)} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Guardar</button>
+                        <button onClick={() => setCategoriaEditando(null)} style={{ background: 'none', color: '#A0786A', border: '1px solid #EDE0DB', borderRadius: 7, padding: '6px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => navigate(`/productos/${c.id}`)} style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 7, padding: '5px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Ver →</button>
+                        <button onClick={() => { setCategoriaEditando(c.id); setNombreEditar(c.nombre); setImagenUrlEditar(c.imagen_url || '') }} style={{ background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 7, padding: '5px 9px', fontSize: 12, cursor: 'pointer' }}>✎</button>
+                        <button onClick={() => handleEliminarCategoria(c.id)} style={{ background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 7, padding: '5px 9px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

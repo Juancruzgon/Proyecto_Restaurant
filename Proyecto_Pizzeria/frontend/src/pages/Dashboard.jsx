@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { getHistorialRecordatorios } from '../services/api'
 
 const MESA_OCUPADA  = 2
 const ESTADO_COCINA = 2
@@ -40,11 +41,14 @@ export default function Dashboard() {
   const [caja,           setCaja]           = useState(null)
   const [pedidosPagados, setPedidosPagados] = useState([])
   const [loading,        setLoading]        = useState(true)
-  const [recordatorios,  setRecordatorios]  = useState([])
-  const [mostrarRec,     setMostrarRec]     = useState(true)
-  const [nuevoTitulo,    setNuevoTitulo]    = useState('')
-  const [nuevoDesc,      setNuevoDesc]      = useState('')
-  const [mostrarFormRec, setMostrarFormRec] = useState(false)
+  const [recordatorios,       setRecordatorios]       = useState([])
+  const [mostrarRec,          setMostrarRec]          = useState(true)
+  const [nuevoTitulo,         setNuevoTitulo]         = useState('')
+  const [nuevoDesc,           setNuevoDesc]           = useState('')
+  const [mostrarFormRec,      setMostrarFormRec]      = useState(false)
+  const [mostrarHistorialRec, setMostrarHistorialRec] = useState(false)
+  const [historialRec,        setHistorialRec]        = useState([])
+  const [loadingHistorial,    setLoadingHistorial]    = useState(false)
 
   const cargar = useCallback(async () => {
     try {
@@ -80,6 +84,19 @@ export default function Dashboard() {
     setRecordatorios(prev => prev.filter(r => r.id !== id))
   }
 
+  const handleVerHistorial = async () => {
+    setLoadingHistorial(true)
+    setMostrarHistorialRec(true)
+    try {
+      const data = await getHistorialRecordatorios()
+      setHistorialRec(data)
+    } catch (e) {
+      setHistorialRec([])
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }
+
   const handleCrearRecordatorio = async () => {
     if (!nuevoTitulo.trim()) return
     await api.post('/recordatorios/', { titulo: nuevoTitulo, descripcion: nuevoDesc || null })
@@ -102,6 +119,37 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: '32px 36px', fontFamily: "'DM Sans', sans-serif", maxWidth: 1200 }}>
+
+      {/* Modal historial recordatorios */}
+      {mostrarHistorialRec && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: '#fff', borderRadius: 18, padding: '28px', width: 520, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06' }}>📌 Historial de recordatorios</div>
+              <button onClick={() => setMostrarHistorialRec(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 13, cursor: 'pointer', color: '#374151' }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {loadingHistorial ? (
+                <div style={{ textAlign: 'center', color: '#A0786A', fontSize: 13, padding: '32px 0' }}>Cargando...</div>
+              ) : historialRec.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '32px 0' }}>Sin recordatorios</div>
+              ) : historialRec.map(r => (
+                <div key={r.id} style={{ padding: '12px 0', borderBottom: '1px solid #F5EDE8', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>{r.titulo}</div>
+                    {r.descripcion && <div style={{ fontSize: 12, color: '#A0786A', marginTop: 2 }}>{r.descripcion}</div>}
+                    <div style={{ fontSize: 11, color: '#C09080', marginTop: 3 }}>{r.fecha}</div>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, flexShrink: 0,
+                    background: r.leido ? '#F3F4F6' : '#FEF9C3', color: r.leido ? '#6B7280' : '#854D0E' }}>
+                    {r.leido ? '✓ Leído' : 'Pendiente'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -128,17 +176,27 @@ export default function Dashboard() {
 
       {/* Recordatorios */}
       {(recordatorios.length > 0 || isAdmin) && (
-        <div style={{ marginBottom: 24 }}>
+        <div style={{
+          marginBottom: 24,
+          background: recordatorios.length > 0 ? '#FEF2F2' : 'transparent',
+          border: recordatorios.length > 0 ? '1px solid #FECACA' : '1px solid transparent',
+          borderRadius: recordatorios.length > 0 ? 14 : 0,
+          padding: recordatorios.length > 0 ? '14px 16px' : 0,
+          transition: 'all 0.2s',
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: mostrarRec ? 10 : 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>📌 Recordatorios</span>
               {recordatorios.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: WINE_LIGHT, color: WINE }}>
-                  {recordatorios.length}
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: '#FCA5A5', color: '#991B1B' }}>
+                  {recordatorios.length} sin leer
                 </span>
               )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleVerHistorial} style={{ fontSize: 12, fontWeight: 600, color: '#5C3A2E', background: 'none', border: 'none', cursor: 'pointer' }}>
+                Ver historial
+              </button>
               {isAdmin && mostrarRec && (
                 <button onClick={() => setMostrarFormRec(v => !v)} style={{ fontSize: 12, fontWeight: 600, color: WINE, background: 'none', border: 'none', cursor: 'pointer' }}>
                   + Nuevo

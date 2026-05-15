@@ -138,8 +138,8 @@ export const getCategorias = async (parentId = null) => {
   return response.data
 }
 
-export const crearCategoria = async (nombre, descripcion, parentId = null) => {
-  const response = await api.post('/categorias-productos/', { nombre, descripcion, parent_id: parentId })
+export const crearCategoria = async (nombre, descripcion, parentId = null, imagenUrl = null) => {
+  const response = await api.post('/categorias-productos/', { nombre, descripcion, parent_id: parentId, imagen_url: imagenUrl || null })
   return response.data
 }
 
@@ -353,5 +353,20 @@ export const getReporteVentas = async (desde, hasta, cajaId = null) => {
 }
 export const getInsumoById = async (insumoId) => {
   const response = await api.get(`/insumos/${insumoId}`)
+  return response.data
+}
+
+export const getHistorialRecordatorios = async () => {
+  const response = await api.get('/recordatorios/historial')
+  return response.data
+}
+
+export const getCajasPorFecha = async (fecha) => {
+  const response = await api.get(`/reportes/cajas-por-fecha?fecha=${fecha}`)
+  return response.data
+}
+
+export const imprimirNuevosProductos = async (pedidoId) => {
+  const response = await api.post(`/pedidos/${pedidoId}/imprimir-nuevos`)
   return response.data
 }

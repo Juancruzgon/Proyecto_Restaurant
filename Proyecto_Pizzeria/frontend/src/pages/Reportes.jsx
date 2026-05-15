@@ -3,7 +3,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { getReporteVentas, getReporteComparar, getReporteProducto, getProductos, getHistorialCajas } from '../services/api'
+import { getReporteVentas, getReporteComparar, getReporteProducto, getProductos, getHistorialCajas, getCajasPorFecha } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -45,11 +45,20 @@ export default function Reportes() {
   const [reporteProd,  setReporteProd]  = useState(null)
   const [loadingProd,  setLoadingProd]  = useState(false)
   const [tab,          setTab]          = useState('horario')
+  const [cajasDelDia,  setCajasDelDia]  = useState([])
 
   useEffect(() => {
     getProductos().then(data => setProductos(data.filter(p => p.activo)))
     getHistorialCajas().then(data => setCajas(data))
   }, [])
+
+  // Detectar si es día único y cargar turnos
+  useEffect(() => {
+    const esDiaUnico = !cajaFiltro && (periodo === 'hoy' || (periodo === 'custom' && desdeCustom === hastaCustom))
+    if (!esDiaUnico) { setCajasDelDia([]); return }
+    const fecha = periodo === 'hoy' ? hoy() : desdeCustom
+    getCajasPorFecha(fecha).then(data => setCajasDelDia(data)).catch(() => setCajasDelDia([]))
+  }, [periodo, desdeCustom, hastaCustom, cajaFiltro])
 
   const getDesdeHasta = () => {
     if (cajaFiltro) {
@@ -175,6 +184,34 @@ export default function Reportes() {
             <input type="date" value={desde2} onChange={e => setDesde2(e.target.value)} style={inputStyle} />
             <span style={{ fontSize: 12, color: '#A0786A' }}>→</span>
             <input type="date" value={hasta2} onChange={e => setHasta2(e.target.value)} style={inputStyle} />
+          </div>
+        )}
+
+        {/* Turnos del día */}
+        {cajasDelDia.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #EDE0DB' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#A0786A', marginBottom: 8 }}>Turnos del día</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setCajaFiltro(''); }}
+                style={{ padding: '5px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${!cajaFiltro ? WINE : '#EDE0DB'}`, background: !cajaFiltro ? WINE : '#fff', color: !cajaFiltro ? '#fff' : '#5C3A2E' }}
+              >
+                Todos
+              </button>
+              {cajasDelDia.map(c => {
+                const hora = c.fecha_apertura ? new Date(c.fecha_apertura).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : ''
+                const activo = String(cajaFiltro) === String(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setCajaFiltro(String(c.id))}
+                    style={{ padding: '5px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${activo ? WINE : '#EDE0DB'}`, background: activo ? WINE : '#fff', color: activo ? '#fff' : '#5C3A2E' }}
+                  >
+                    {c.activo ? '🟢 ' : ''}Turno {hora}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

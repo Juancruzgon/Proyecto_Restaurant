@@ -58,11 +58,6 @@ async def crear_pedido(pedido: PedidoCreate, session: Session = Depends(get_sess
         "pedido_id": resultado.id,
         "mesa_id": resultado.mesa_id
     }))
-    detalles = crud_mostrar_detalle_pedido(resultado.id, session)
-    ip     = os.getenv("PRINTER_IP")
-    puerto = int(os.getenv("PRINTER_PORT", 9100))
-    if ip:
-        threading.Thread(target=imprimir_comanda, args=(resultado, detalles, ip, puerto)).start()
     return resultado
 
 @router.put("/{pedido_id}")
@@ -133,8 +128,32 @@ def imprimir_comanda_pedido(pedido_id: int, session: Session = Depends(get_sessi
     puerto = int(os.getenv("PRINTER_PORT", 9100))
     if not ip:
         raise HTTPException(status_code=500, detail="PRINTER_IP no configurada")
+    if detalles:
+        pedido.ultimo_detalle_impreso = max(d["id"] for d in detalles)
+        session.add(pedido)
+        session.commit()
     threading.Thread(target=imprimir_comanda, args=(pedido, detalles, ip, puerto)).start()
     return {"detail": "Comanda enviada a imprimir"}
+
+
+@router.post("/{pedido_id}/imprimir-nuevos")
+def imprimir_nuevos_productos(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    pedido = session.get(Pedido, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    ip     = os.getenv("PRINTER_IP")
+    puerto = int(os.getenv("PRINTER_PORT", 9100))
+    if not ip:
+        raise HTTPException(status_code=500, detail="PRINTER_IP no configurada")
+    todos = crud_mostrar_detalle_pedido(pedido_id, session)
+    nuevos = [d for d in todos if d["id"] > (pedido.ultimo_detalle_impreso or 0)]
+    if not nuevos:
+        return {"detail": "No hay productos nuevos para imprimir"}
+    pedido.ultimo_detalle_impreso = max(d["id"] for d in nuevos)
+    session.add(pedido)
+    session.commit()
+    threading.Thread(target=imprimir_comanda, args=(pedido, nuevos, ip, puerto)).start()
+    return {"detail": "Nuevos productos enviados a imprimir"}
 
 @router.post("/{pedido_id}/imprimir-ticket")
 def imprimir_ticket_pedido(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):

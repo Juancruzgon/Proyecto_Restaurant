@@ -1,6 +1,7 @@
 # routers/reporte.py
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
+from sqlalchemy import func
 from database import get_session
 from models.usuario import Usuario
 from models.pedido import Pedido, DetallePedido
@@ -194,6 +195,26 @@ def reporte_producto(
         "total_ventas":   round(total_ventas, 2),
         "por_dia":        [{"fecha": k, "cantidad": v} for k, v in sorted(por_dia.items())],
     }
+
+
+@router.get("/cajas-por-fecha")
+def cajas_por_fecha(
+    fecha: date,
+    session: Session = Depends(get_session),
+    current_user: Usuario = Depends(get_current_user)
+):
+    cajas = session.exec(
+        select(Caja).where(func.date(Caja.fecha_apertura) == fecha)
+    ).all()
+    resultado = []
+    for c in cajas:
+        resultado.append({
+            "id":             c.id,
+            "fecha_apertura": str(c.fecha_apertura),
+            "fecha_cierre":   str(c.fecha_cierre) if c.fecha_cierre else None,
+            "activo":         c.activo,
+        })
+    return resultado
 
 
 @router.get("/comparar")

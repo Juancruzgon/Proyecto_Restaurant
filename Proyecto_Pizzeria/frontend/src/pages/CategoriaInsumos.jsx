@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getInsumo, crearInsumo, agregarCompra } from '../services/api'
+import api from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -17,6 +18,13 @@ const inputStyle = {
 const labelStyle = {
   fontSize: 12, fontWeight: 600,
   color: '#A0786A', marginBottom: 5, display: 'block',
+}
+
+const TIPO_COLORS = {
+  compra:    { bg: '#DCFCE7', color: '#166534', label: '↑ Compra'    },
+  venta:     { bg: '#FEE2E2', color: '#991B1B', label: '↓ Venta'     },
+  ajuste:    { bg: '#FEF9C3', color: '#854D0E', label: '✎ Ajuste'    },
+  reversion: { bg: '#EFF6FF', color: '#1D4ED8', label: '↩ Reversión' },
 }
 
 function stockStyle(stock) {
@@ -40,6 +48,11 @@ export default function CategoriaInsumos() {
   const [compras, setCompras] = useState({})
   // Control de qué insumo tiene el formulario de compra abierto
   const [comprAbierta, setComprAbierta] = useState(null)
+
+  // Historial modal
+  const [historialInsumo,  setHistorialInsumo]  = useState(null)
+  const [movimientos,      setMovimientos]      = useState([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
 
   const cargar = () => getInsumo(categoriaId).then(data => setInsumos(data))
   useEffect(() => { cargar() }, [categoriaId])
@@ -77,8 +90,63 @@ export default function CategoriaInsumos() {
     }))
   }
 
+  const handleAbrirHistorial = async (insumo) => {
+    setHistorialInsumo(insumo)
+    setLoadingHistorial(true)
+    try {
+      const { data } = await api.get(`/insumos/${insumo.id}/movimientos`)
+      setMovimientos(data)
+    } catch (e) {
+      setMovimientos([])
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }
+
   return (
     <div style={{ padding: '28px 32px', fontFamily: "'DM Sans', sans-serif" }}>
+
+      {/* Modal historial */}
+      {historialInsumo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: '#fff', borderRadius: 18, padding: '28px', width: 500, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06' }}>📋 Historial de movimientos</div>
+                <div style={{ fontSize: 13, color: '#A0786A', marginTop: 2 }}>{historialInsumo.nombre}</div>
+              </div>
+              <button onClick={() => setHistorialInsumo(null)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 13, cursor: 'pointer', color: '#374151' }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {loadingHistorial ? (
+                <div style={{ textAlign: 'center', color: '#A0786A', fontSize: 13, padding: '32px 0' }}>Cargando...</div>
+              ) : movimientos.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#C09080', fontSize: 13, padding: '32px 0' }}>Sin movimientos registrados</div>
+              ) : (
+                <div>
+                  {movimientos.map(m => {
+                    const tipo = TIPO_COLORS[m.tipo_movimiento] || { bg: '#F3F4F6', color: '#6B7280', label: m.tipo_movimiento }
+                    return (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F5EDE8' }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: tipo.bg, color: tipo.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                          {tipo.label}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: m.cantidad > 0 ? '#166534' : '#991B1B' }}>
+                            {m.cantidad > 0 ? '+' : ''}{m.cantidad} {historialInsumo.unidad_medida}
+                          </div>
+                          {m.nota && <div style={{ fontSize: 11, color: '#A0786A', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nota}</div>}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#C09080', flexShrink: 0 }}>{m.fecha}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -141,7 +209,7 @@ export default function CategoriaInsumos() {
             <div key={insumo.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px' }}>
 
               {/* Fila superior */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{insumo.nombre}</div>
                   <div style={{ fontSize: 11, color: '#A0786A', marginTop: 2 }}>
@@ -162,15 +230,26 @@ export default function CategoriaInsumos() {
                 </div>
               </div>
 
-              {/* Botón registrar compra / formulario */}
-              {!abierta ? (
+              {/* Botones acción */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: abierta ? 10 : 0 }}>
                 <button
-                  onClick={() => setComprAbierta(insumo.id)}
-                  style={{ width: '100%', background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={() => handleAbrirHistorial(insumo)}
+                  style={{ flex: 1, background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                 >
-                  + Registrar compra
+                  📋 Historial
                 </button>
-              ) : (
+                {!abierta && (
+                  <button
+                    onClick={() => setComprAbierta(insumo.id)}
+                    style={{ flex: 1, background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Registrar compra
+                  </button>
+                )}
+              </div>
+
+              {/* Formulario compra */}
+              {abierta && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <div style={{ flex: 1 }}>
