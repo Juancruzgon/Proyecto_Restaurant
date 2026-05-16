@@ -36,10 +36,11 @@ def obtener_pedidos(
     mesa_id: int = None,
     caja_id: int = None,
     pagados: bool = False,
+    para_cocina: bool = False,
     session: Session = Depends(get_session),
     current_user: Usuario = Depends(get_current_user)
 ):
-    return crud_obtener_pedidos(session, mesa_id=mesa_id, caja_id=caja_id, pagados=pagados)
+    return crud_obtener_pedidos(session, mesa_id=mesa_id, caja_id=caja_id, pagados=pagados, para_cocina=para_cocina)
 
 
 @router.get("/{pedido_id}")
@@ -118,6 +119,18 @@ async def modificar_cantidad_pedido(pedido_id: int, detalle_id: int, cantidad: i
 def modificar_nota_detalle(pedido_id: int, detalle_id: int, data: DetallePedidoModifyNota, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
     return crud_modificar_nota_detalle(detalle_id, data.nota, session)
 
+@router.put("/{pedido_id}/listo-cocina")
+async def marcar_listo_cocina(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    pedido = session.get(Pedido, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    pedido.listo_cocina = True
+    session.add(pedido)
+    session.commit()
+    session.refresh(pedido)
+    await manager.broadcast(json.dumps({"evento": "estado_pedido", "pedido_id": pedido_id, "estado_id": pedido.estado_id}))
+    return pedido
+
 @router.post("/{pedido_id}/imprimir-comanda")
 def imprimir_comanda_pedido(pedido_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
     pedido = session.get(Pedido, pedido_id)
@@ -148,7 +161,7 @@ def imprimir_nuevos_productos(pedido_id: int, session: Session = Depends(get_ses
     todos = crud_mostrar_detalle_pedido(pedido_id, session)
     nuevos = [d for d in todos if d["id"] > (pedido.ultimo_detalle_impreso or 0)]
     if not nuevos:
-        return {"detail": "No hay productos nuevos para imprimir"}
+        raise HTTPException(status_code=400, detail="No hay productos nuevos para imprimir")
     pedido.ultimo_detalle_impreso = max(d["id"] for d in nuevos)
     session.add(pedido)
     session.commit()

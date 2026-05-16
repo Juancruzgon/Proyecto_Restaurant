@@ -1,20 +1,20 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.salon import Salon
-import schemas
+from schemas.salon import SalonCreate, SalonModify
 from fastapi import HTTPException
 
 def obtener_salon(session: Session):
     return session.exec(select(Salon)).all()
 
-def crear_salon(salon: schemas.SalonCreate, session: Session):
+def crear_salon(salon: SalonCreate, session: Session):
     nuevo_salon = Salon(**salon.model_dump())
     session.add(nuevo_salon)
     session.commit()
     session.refresh(nuevo_salon)
     return nuevo_salon
 
-def modificar_salon(salon_id: int, salon: schemas.SalonModify, session: Session):
+def modificar_salon(salon_id: int, salon: SalonModify, session: Session):
     salon_existente = session.exec(select(Salon).where(Salon.id == salon_id)).first()
     if not salon_existente:
         raise HTTPException(status_code=404, detail="Salón no encontrado")

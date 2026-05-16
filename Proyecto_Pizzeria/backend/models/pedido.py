@@ -18,6 +18,10 @@ class Pedido(SQLModel, table=True):
     caja_id: Optional[int] = Field(default=None, foreign_key="caja.id")
     metodo_pago: Optional[str] = Field(default=None)
     ultimo_detalle_impreso: int = Field(default=0)
+    nombre_cliente: Optional[str] = Field(default=None)
+    telefono_cliente: Optional[str] = Field(default=None)
+    direccion_cliente: Optional[str] = Field(default=None)
+    listo_cocina: bool = Field(default=True)
 
 class DetallePedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

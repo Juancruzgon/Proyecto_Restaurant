@@ -21,12 +21,21 @@ def imprimir_comanda(pedido: Pedido, detalles: list, ip_impresora: str, puerto: 
             p.text(f"Mesa: {pedido.mesa_id}\n")
         elif pedido.tipo_pedido == 'Takeaway' and pedido.pager:
             p.text(f"Takeaway - Pager: {pedido.pager}\n")
+        elif pedido.tipo_pedido == 'Delivery':
+            p.text("DELIVERY\n")
         else:
             p.text(f"{pedido.tipo_pedido}\n")
 
         p.set(bold=False)
         p.text(f"Pedido #{pedido.nro_pedido}\n")
         p.text(f"Hora: {str(pedido.hora)[:5]}\n")
+        if pedido.tipo_pedido == 'Delivery':
+            if getattr(pedido, 'nombre_cliente', None):
+                p.text(f"Cliente: {pedido.nombre_cliente}\n")
+            if getattr(pedido, 'telefono_cliente', None):
+                p.text(f"Tel: {pedido.telefono_cliente}\n")
+            if getattr(pedido, 'direccion_cliente', None):
+                p.text(f"Dir: {pedido.direccion_cliente}\n")
         p.text("------------------------\n")
 
         for detalle in detalles:
@@ -56,11 +65,20 @@ def imprimir_ticket(pedido: Pedido, detalles: list, ip_impresora: str, puerto: i
             p.text(f"Mesa: {pedido.mesa_id}\n")
         elif pedido.tipo_pedido == 'Takeaway' and pedido.pager:
             p.text(f"Takeaway - Pager: {pedido.pager}\n")
+        elif pedido.tipo_pedido == 'Delivery':
+            p.text("DELIVERY\n")
         else:
             p.text(f"{pedido.tipo_pedido}\n")
 
         p.text(f"Pedido #{pedido.nro_pedido}\n")
         p.text(f"Fecha: {pedido.fecha}  Hora: {str(pedido.hora)[:5]}\n")
+        if pedido.tipo_pedido == 'Delivery':
+            if getattr(pedido, 'nombre_cliente', None):
+                p.text(f"Cliente: {pedido.nombre_cliente}\n")
+            if getattr(pedido, 'telefono_cliente', None):
+                p.text(f"Tel: {pedido.telefono_cliente}\n")
+            if getattr(pedido, 'direccion_cliente', None):
+                p.text(f"Dir: {pedido.direccion_cliente}\n")
         p.text("------------------------\n")
 
         for detalle in detalles:

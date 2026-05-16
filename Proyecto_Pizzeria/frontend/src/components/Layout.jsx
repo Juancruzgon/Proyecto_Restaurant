@@ -7,15 +7,15 @@ const WINE_LIGHT = '#FEF2EE'
 const WINE_MID = '#F3D5CC'
 
 const navItems = [
-  { to: '/dashboard', icon: '▣', label: 'Dashboard' },
-  { to: '/mesas', icon: '⊞', label: 'Mesas' },
-  { to: '/pedidos', icon: '📋', label: 'Pedidos' },
-  { to: '/productos', icon: '🛒', label: 'Productos', adminOnly: true },
-  { to: '/insumos', icon: '📦', label: 'Insumos', adminOnly: true },
-  { to: '/gastos', icon: '💰', label: 'Gastos', adminOnly: true },
-  { to: '/usuarios', icon: '👥', label: 'Usuarios', adminOnly: true },
-  { to: '/cocina', icon: '👨‍🍳', label: 'Cocina', adminOnly: true },
-  { to: '/reportes', icon: '📊', label: 'Reportes', adminOnly: true },
+  { to: '/dashboard', icon: '▣',    label: 'Dashboard' },
+  { to: '/pedidos',   icon: '📋',   label: 'Pedidos' },
+  { to: '/mesas',     icon: '⊞',    label: 'Mesas' },
+  { to: '/productos', icon: '🛒',   label: 'Productos', adminOnly: true },
+  { to: '/insumos',   icon: '📦',   label: 'Insumos',   adminOnly: true },
+  { to: '/gastos',    icon: '💰',   label: 'Gastos',    adminOnly: true },
+  { to: '/usuarios',  icon: '👥',   label: 'Usuarios',  adminOnly: true },
+  { to: '/reportes',  icon: '📊',   label: 'Reportes',  adminOnly: true },
+  { to: '/cocina',    icon: '👨‍🍳',  label: 'Cocina',    adminOnly: true },
 ]
 
 export default function Layout({ children }) {

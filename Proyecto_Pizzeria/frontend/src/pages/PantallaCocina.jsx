@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getPedidos, getDetallePedido, cambiarEstadoPedido } from '../services/api'
+import { getPedidos, getDetallePedido, cambiarEstadoPedido, marcarListoCocina } from '../services/api'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -36,11 +36,10 @@ export default function PantallaCocina() {
   const [hora,     setHora]     = useState(new Date())
 
   const cargar = useCallback(async () => {
-    const data = await getPedidos()
-    const enCocina = data.filter(p => p.estado_id === 2)
-    setPedidos(enCocina)
+    const data = await getPedidos({ para_cocina: true })
+    setPedidos(data)
     const detallesNuevos = {}
-    await Promise.all(enCocina.map(async p => {
+    await Promise.all(data.map(async p => {
       try {
         const d = await getDetallePedido(p.id)
         detallesNuevos[p.id] = d
@@ -75,8 +74,12 @@ export default function PantallaCocina() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleMarcarListo = async (pedidoId) => {
-    await cambiarEstadoPedido(pedidoId)
+  const handleMarcarListo = async (pedido) => {
+    if (pedido.estado_id === 4) {
+      await marcarListoCocina(pedido.id)
+    } else {
+      await cambiarEstadoPedido(pedido.id)
+    }
     cargar()
   }
 
@@ -111,7 +114,7 @@ export default function PantallaCocina() {
       {/* Contadores */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 12, padding: '10px 18px' }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color: WINE }}>{pedidos.length}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: WINE }}>{pedidos.filter(p => p.estado_id === 2).length}</div>
           <div style={{ fontSize: 11, color: '#A0786A' }}>en cocina</div>
         </div>
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 12, padding: '10px 18px' }}>
@@ -136,16 +139,17 @@ export default function PantallaCocina() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {pedidos.map(p => {
-            const dets    = detalles[p.id] || []
-            const tcColor = colorTiempo(String(p.hora))
-            const tcLabel = tiempoTranscurrido(String(p.hora))
+            const dets     = detalles[p.id] || []
+            const tcColor  = colorTiempo(String(p.hora))
+            const tcLabel  = tiempoTranscurrido(String(p.hora))
+            const isPagado = p.estado_id === 4
 
             return (
-              <div
+             <div
                 key={p.id}
                 style={{
                   background: '#fff',
-                  border: `1px solid ${tcColor === '#EF4444' ? '#FECACA' : '#EDE0DB'}`,
+                  border: `1px solid ${isPagado ? '#86EFAC' : tcColor === '#EF4444' ? '#FECACA' : '#EDE0DB'}`,
                   borderRadius: 16,
                   overflow: 'hidden',
                 }}
@@ -153,33 +157,40 @@ export default function PantallaCocina() {
                 {/* Card header */}
                 <div style={{
                   padding: '14px 18px',
-                  background: tcColor === '#EF4444' ? '#FEF2F2' : WINE_LIGHT,
+                  background: isPagado ? '#F0FDF4' : tcColor === '#EF4444' ? '#FEF2F2' : WINE_LIGHT,
                   borderBottom: '1px solid #EDE0DB',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 20 }}>{TIPO_ICONS[p.tipo_pedido] || '🍽️'}</span>
                     <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06' }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#1A0A06', display: 'flex', alignItems: 'center', gap: 8 }}>
                         {p.tipo_pedido === 'Salon'
                           ? `Mesa ${p.mesa_id}`
                           : p.tipo_pedido === 'Takeaway' && p.pager
                             ? `Pager ${p.pager}`
                             : p.tipo_pedido}
+                        {isPagado && (
+                          <span style={{ fontSize: 11, fontWeight: 700, background: '#16A34A', color: '#fff', padding: '2px 8px', borderRadius: 20 }}>
+                            PAGADO
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#A0786A' }}>
                         #{p.nro_pedido} · {fmtHora(String(p.hora))}
                       </div>
                     </div>
                   </div>
-                  <div style={{
-                    fontSize: 13, fontWeight: 700,
-                    color: tcColor,
-                    background: `${tcColor}18`,
-                    padding: '4px 10px', borderRadius: 20,
-                  }}>
-                    {tcLabel}
-                  </div>
+                  {!isPagado && (
+                    <div style={{
+                      fontSize: 13, fontWeight: 700,
+                      color: tcColor,
+                      background: `${tcColor}18`,
+                      padding: '4px 10px', borderRadius: 20,
+                    }}>
+                      {tcLabel}
+                    </div>
+                  )}
                 </div>
 
                 {/* Productos */}
@@ -219,7 +230,7 @@ export default function PantallaCocina() {
                 {/* Botón marcar listo */}
                 <div style={{ padding: '10px 18px', borderTop: '1px solid #F5EDE8' }}>
                   <button
-                    onClick={() => handleMarcarListo(p.id)}
+                    onClick={() => handleMarcarListo(p)}
                     style={{
                       width: '100%', background: '#16A34A',
                       color: '#fff', border: 'none', borderRadius: 10,

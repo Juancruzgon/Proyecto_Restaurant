@@ -1,4 +1,5 @@
 from datetime import date
+from sqlalchemy import or_, and_
 from sqlmodel import Session, select
 from models.pedido import Pedido, DetallePedido
 from models.mesa import Mesa
@@ -58,9 +59,15 @@ def descontar_stock_pedido(pedido_id: int, detalles: list, session: Session):
 
 # ── Pedidos ──────────────────────────────────────────────────
 
-def obtener_pedidos(session: Session, mesa_id: int = None, caja_id: int = None, pagados: bool = False):
-    if pagados:
-        # Pedidos pagados (activo=False, estado_id=4)
+def obtener_pedidos(session: Session, mesa_id: int = None, caja_id: int = None, pagados: bool = False, para_cocina: bool = False):
+    if para_cocina:
+        statement = select(Pedido).where(
+            or_(
+                Pedido.estado_id == 2,
+                and_(Pedido.estado_id == 4, Pedido.listo_cocina == False)
+            )
+        )
+    elif pagados:
         statement = select(Pedido).where(Pedido.estado_id == 4)
         if caja_id:
             statement = statement.where(Pedido.caja_id == caja_id)
@@ -183,6 +190,10 @@ def cobrar_pedido(pedido_id: int, pagos: list, session: Session):
             monto=pago.monto,
         )
         session.add(nuevo_pago)
+
+    # Si se paga cualquier pedido aún en cocina, debe seguir visible para la cocina y el dashboard
+    if pedido_existente.estado_id == 2:
+        pedido_existente.listo_cocina = False
 
     pedido_existente.estado_id   = 4
     pedido_existente.activo      = False

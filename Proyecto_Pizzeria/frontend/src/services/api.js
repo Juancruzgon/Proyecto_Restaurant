@@ -127,8 +127,14 @@ export const getPedidos = async (params = {}) => {
   const query = new URLSearchParams()
   if (params.caja_id) query.append('caja_id', params.caja_id)
   if (params.pagados) query.append('pagados', 'true')
+  if (params.para_cocina) query.append('para_cocina', 'true')
   const url = `/pedidos/${query.toString() ? '?' + query.toString() : ''}`
   const response = await api.get(url)
+  return response.data
+}
+
+export const marcarListoCocina = async (pedidoId) => {
+  const response = await api.put(`/pedidos/${pedidoId}/listo-cocina`)
   return response.data
 }
 

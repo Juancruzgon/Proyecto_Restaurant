@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { getReporteVentas, getReporteComparar, getReporteProducto, getProductos, getHistorialCajas, getCajasPorFecha } from '../services/api'
@@ -65,7 +65,7 @@ export default function Reportes() {
       // Si hay caja seleccionada, usar rango amplio
       return { desde: hace(365), hasta: hoy() }
     }
-    if (periodo === 'custom') return { desde: desdeCustom, hasta: hastaCustom }
+    if (periodo === 'custom' || comparar) return { desde: desdeCustom, hasta: hastaCustom }
     const p = PERIODOS.find(p => p.id === periodo)
     if (!p || !p.desde) return { desde: hace(6), hasta: hoy() }
     return { desde: p.desde(), hasta: p.hasta() }
@@ -136,15 +136,15 @@ export default function Reportes() {
           {/* Selector período */}
           <div style={{ display: 'flex', gap: 6 }}>
             {PERIODOS.map(p => (
-              <button key={p.id} onClick={() => { setPeriodo(p.id); setCajaFiltro('') }}
-                style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${periodo === p.id && !cajaFiltro ? WINE : '#EDE0DB'}`, background: periodo === p.id && !cajaFiltro ? WINE : '#fff', color: periodo === p.id && !cajaFiltro ? '#fff' : '#5C3A2E' }}>
+              <button key={p.id} onClick={() => { setPeriodo(p.id); setCajaFiltro(''); if(comparar) setComparar(false); }}
+                style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${periodo === p.id && !cajaFiltro && !comparar ? WINE : '#EDE0DB'}`, background: periodo === p.id && !cajaFiltro && !comparar ? WINE : '#fff', color: periodo === p.id && !cajaFiltro && !comparar ? '#fff' : '#5C3A2E' }}>
                 {p.label}
               </button>
             ))}
           </div>
 
           {/* Selector caja */}
-          <select value={cajaFiltro} onChange={e => { setCajaFiltro(e.target.value); setPeriodo('') }}
+          <select value={cajaFiltro} onChange={e => { setCajaFiltro(e.target.value); setPeriodo(''); setComparar(false); }}
             style={{ ...inputStyle, minWidth: 200 }}>
             <option value="">Todas las cajas</option>
             {cajas.map(c => (
@@ -154,18 +154,43 @@ export default function Reportes() {
             ))}
           </select>
 
-          {/* Fechas custom */}
-          {periodo === 'custom' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input type="date" value={desdeCustom} onChange={e => setDesdeCustom(e.target.value)} style={inputStyle} />
-              <span style={{ fontSize: 12, color: '#A0786A' }}>→</span>
-              <input type="date" value={hastaCustom} onChange={e => setHastaCustom(e.target.value)} style={inputStyle} />
+          {/* Bloque de Fechas: Agrupamos Período 1 y Período 2 si estamos en "Comparar" o "Custom" */}
+          {(periodo === 'custom' || comparar) && !cajaFiltro && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              
+              {/* Fechas Período 1 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {comparar && <span style={{ fontSize: 12, fontWeight: 600, color: WINE }}>Período 1:</span>}
+                <input type="date" value={desdeCustom} onChange={e => { setDesdeCustom(e.target.value); setPeriodo('custom'); }} style={inputStyle} />
+                <span style={{ fontSize: 12, color: '#A0786A' }}>→</span>
+                <input type="date" value={hastaCustom} onChange={e => { setHastaCustom(e.target.value); setPeriodo('custom'); }} style={inputStyle} />
+              </div>
+
+              {/* Fechas Período 2 */}
+              {comparar && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>Período 2:</span>
+                  <input type="date" value={desde2} onChange={e => setDesde2(e.target.value)} style={inputStyle} />
+                  <span style={{ fontSize: 12, color: '#A0786A' }}>→</span>
+                  <input type="date" value={hasta2} onChange={e => setHasta2(e.target.value)} style={inputStyle} />
+                </div>
+              )}
             </div>
           )}
 
           {/* Toggle comparar */}
           {!cajaFiltro && (
-            <button onClick={() => setComparar(v => !v)}
+            <button onClick={() => { 
+                setComparar(v => !v); 
+                if (periodo !== 'custom') {
+                  const p = PERIODOS.find(x => x.id === periodo);
+                  if (p && p.desde) {
+                    setDesdeCustom(p.desde());
+                    setHastaCustom(p.hasta());
+                  }
+                  setPeriodo('custom');
+                }
+              }}
               style={{ padding: '6px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, border: `1px solid ${comparar ? '#1D4ED8' : '#EDE0DB'}`, background: comparar ? '#EFF6FF' : '#fff', color: comparar ? '#1D4ED8' : '#5C3A2E' }}>
               ⇄ Comparar períodos
             </button>
@@ -176,16 +201,6 @@ export default function Reportes() {
             {loading ? 'Cargando...' : 'Ver reporte'}
           </button>
         </div>
-
-        {/* Período 2 */}
-        {comparar && !cajaFiltro && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #EDE0DB' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>Período 2:</span>
-            <input type="date" value={desde2} onChange={e => setDesde2(e.target.value)} style={inputStyle} />
-            <span style={{ fontSize: 12, color: '#A0786A' }}>→</span>
-            <input type="date" value={hasta2} onChange={e => setHasta2(e.target.value)} style={inputStyle} />
-          </div>
-        )}
 
         {/* Turnos del día */}
         {cajasDelDia.length > 0 && (
@@ -285,22 +300,60 @@ export default function Reportes() {
             ))}
           </div>
 
-          {/* Gráfico horario — HORIZONTAL */}
+          {/* Gráfico horario — LINEAL */}
           {tab === 'horario' && (
             <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '20px' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 16 }}>Ventas por horario</div>
-              <ResponsiveContainer width="100%" height={reporte.por_hora.length * 40 + 60}>
-                <BarChart data={reporte.por_hora} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F5EDE8" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#A0786A' }} tickFormatter={v => '$' + v.toLocaleString('es-AR')} />
-                  <YAxis type="category" dataKey="hora" tick={{ fontSize: 11, fill: '#A0786A' }} width={55} />
-                  <Tooltip formatter={v => fmtPeso(v)} />
-                  {comparar && reporte2 && <Legend />}
-                  <Bar dataKey="ventas" fill={WINE} radius={[0, 4, 4, 0]} name="Período 1" />
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', marginBottom: 16 }}>Pedidos por horario</div>
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={reporte.por_hora} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5EDE8" vertical={false} />
+                  
+                  <XAxis 
+                    dataKey="hora" 
+                    tick={{ fontSize: 11, fill: '#A0786A' }} 
+                    axisLine={false}
+                    tickLine={false}
+                    dy={10}
+                  />
+                  
+                  <YAxis 
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: '#A0786A' }} 
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  
+                  <Tooltip 
+                    formatter={(value) => [value, 'Pedidos']} 
+                    labelStyle={{ color: '#1A0A06', fontWeight: 600, marginBottom: 4 }}
+                    contentStyle={{ borderRadius: 8, border: '1px solid #EDE0DB', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
+                  />
+                  
+                  {comparar && reporte2 && <Legend wrapperStyle={{ paddingTop: 20 }}/>}
+                  
+                  <Line 
+                    type="monotone" 
+                    dataKey="pedidos" 
+                    stroke={WINE} 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} 
+                    activeDot={{ r: 6, fill: WINE, stroke: '#fff', strokeWidth: 2 }} 
+                    name="Período 1" 
+                  />
+                  
                   {comparar && reporte2 && (
-                    <Bar data={reporte2.por_hora} dataKey="ventas" fill="#1D4ED8" radius={[0, 4, 4, 0]} name="Período 2" />
+                    <Line 
+                      type="monotone" 
+                      data={reporte2.por_hora} 
+                      dataKey="pedidos" 
+                      stroke="#1D4ED8" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} 
+                      activeDot={{ r: 6, fill: '#1D4ED8', stroke: '#fff', strokeWidth: 2 }}
+                      name="Período 2" 
+                    />
                   )}
-                </BarChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
           )}

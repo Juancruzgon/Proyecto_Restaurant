@@ -9,6 +9,7 @@ export default function Insumos() {
   const navigate = useNavigate()
   const [categorias,        setCategorias]        = useState([])
   const [nombreCategoria,   setNombreCategoria]   = useState('')
+  const [imagenUrlCat,      setImagenUrlCat]      = useState('')
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
 
   const cargar = () => getCategoriasInsumo().then(data => setCategorias(data))
@@ -16,9 +17,10 @@ export default function Insumos() {
 
   const handleCrear = () => {
     if (!nombreCategoria.trim()) return
-    crearCategoriaInsumo({ nombre: nombreCategoria }).then(() => {
+    crearCategoriaInsumo({ nombre: nombreCategoria, imagen_url: imagenUrlCat.trim() || null }).then(() => {
       cargar()
       setNombreCategoria('')
+      setImagenUrlCat('')
       setMostrarFormulario(false)
     })
   }
@@ -50,11 +52,17 @@ export default function Insumos() {
             onChange={e => setNombreCategoria(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCrear()}
             placeholder="Nombre de la categoría"
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid #EDE0DB', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 8 }}
+          />
+          <input
+            value={imagenUrlCat}
+            onChange={e => setImagenUrlCat(e.target.value)}
+            placeholder="URL de imagen (opcional)"
             style={{ width: '100%', padding: '9px 12px', border: '1px solid #EDE0DB', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 12 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
-            <button onClick={() => { setMostrarFormulario(false); setNombreCategoria('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombreCategoria(''); setImagenUrlCat('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
       )}
@@ -64,15 +72,24 @@ export default function Insumos() {
         {categorias.map(c => (
           <div
             key={c.id}
-            style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
           >
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
-            <button
-              onClick={() => navigate(`/insumos/${c.id}`)}
-              style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Ver →
-            </button>
+            {/* Image or placeholder */}
+            <div style={{ height: 80, background: '#F8F5F4', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {c.imagen_url
+                ? <img src={c.imagen_url} alt={c.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontSize: 32 }}>📦</span>
+              }
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
+              <button
+                onClick={() => navigate(`/insumos/${c.id}`)}
+                style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Ver →
+              </button>
+            </div>
           </div>
         ))}
 

@@ -8,3 +8,4 @@ class CategoriaInsumo(SQLModel, table=True):
     nombre: str
     descripcion: Optional[str] = None
     parent_id: Optional[int] = Field(default=None, foreign_key="categoriainsumo.id")
+    imagen_url: Optional[str] = Field(default=None)

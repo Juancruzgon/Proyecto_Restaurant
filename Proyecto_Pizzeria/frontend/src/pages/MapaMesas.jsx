@@ -41,6 +41,9 @@ export default function MapaMesas() {
   // Tamaño del canvas (salón)
   const [canvasW, setCanvasW] = useState(1200)
   const [canvasH, setCanvasH] = useState(600)
+  
+  // Ref en tiempo real para evitar closures viejos en el onMouseUp
+  const currentCanvasRef = useRef({ w: 1200, h: 600 })
 
   const dragging      = useRef(null)
   const resizingMesa  = useRef(null)
@@ -67,8 +70,11 @@ export default function MapaMesas() {
   const cargarSalon = useCallback((salonId, salonesData) => {
     const salon = salonesData.find(s => s.id === salonId)
     if (salon) {
-      setCanvasW(salon.ancho || 1200)
-      setCanvasH(salon.alto  || 600)
+      const w = salon.ancho || 1200
+      const h = salon.alto || 600
+      setCanvasW(w)
+      setCanvasH(h)
+      currentCanvasRef.current = { w, h } // Sincronizamos la Ref
     }
   }, [])
 
@@ -125,7 +131,8 @@ export default function MapaMesas() {
     e.stopPropagation()
     resizingSalon.current = {
       startX: e.clientX, startY: e.clientY,
-      startW: canvasW,   startH: canvasH,
+      startW: currentCanvasRef.current.w,
+      startH: currentCanvasRef.current.h,
     }
   }
 
@@ -135,8 +142,8 @@ export default function MapaMesas() {
       const rect = canvasRef.current.getBoundingClientRect()
       const { mesaId, offsetX, offsetY } = dragging.current
       const tam = tamanios.current[mesaId] || { w: MESA_DEF, h: MESA_DEF }
-      const x = Math.min(Math.max(0, e.clientX - rect.left - offsetX), canvasW - tam.w)
-      const y = Math.min(Math.max(0, e.clientY - rect.top  - offsetY), canvasH - tam.h)
+      const x = Math.min(Math.max(0, e.clientX - rect.left - offsetX), currentCanvasRef.current.w - tam.w)
+      const y = Math.min(Math.max(0, e.clientY - rect.top  - offsetY), currentCanvasRef.current.h - tam.h)
       posiciones.current[mesaId] = { x, y }
       const el = document.getElementById(`mesa-${mesaId}`)
       if (el) { el.style.left = x + 'px'; el.style.top = y + 'px' }
@@ -155,8 +162,11 @@ export default function MapaMesas() {
       const { startX, startY, startW, startH } = resizingSalon.current
       const newW = Math.max(400, startW + e.clientX - startX)
       const newH = Math.max(300, startH + e.clientY - startY)
+      
+      // Actualizamos estado visual y la Ref en simultáneo
       setCanvasW(newW)
       setCanvasH(newH)
+      currentCanvasRef.current = { w: newW, h: newH }
     }
   }
 
@@ -180,7 +190,14 @@ export default function MapaMesas() {
 
     if (resizingSalon.current) {
       resizingSalon.current = null
-      try { await api.put(`/salones/${salonActivo}`, { ancho: canvasW, alto: canvasH }) }
+      const finalW = currentCanvasRef.current.w
+      const finalH = currentCanvasRef.current.h
+      
+      try {
+        await api.put(`/salones/${salonActivo}`, { ancho: finalW, alto: finalH })
+        // Acá actualizamos el array para que al cambiar de tab no se borre
+        setSalones(prev => prev.map(s => s.id === salonActivo ? { ...s, ancho: finalW, alto: finalH } : s))
+      }
       catch (e) { console.error(e) }
     }
   }

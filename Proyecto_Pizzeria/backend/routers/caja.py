@@ -37,6 +37,15 @@ def cerrar_caja(session: Session = Depends(get_session), current_user: Usuario =
     caja = session.exec(select(Caja).where(Caja.activo == True)).first()
     if not caja:
         raise HTTPException(status_code=404, detail="No hay caja abierta")
+    # Validar que no haya pedidos activos
+    pedidos_activos = session.exec(
+        select(Pedido).where(Pedido.caja_id == caja.id, Pedido.activo == True)
+    ).all()
+    if pedidos_activos:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hay {len(pedidos_activos)} pedido(s) activo(s). Cerrá o cobrá todos los pedidos antes de cerrar la caja."
+        )
     # Calcular totales del turno
     pedidos = session.exec(
         select(Pedido).where(

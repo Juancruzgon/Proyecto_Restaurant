@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getPedidos, getUsuarios, getCajaActiva } from '../services/api'
+import ModalPedido from '../components/ModalPedido'
 
 const WINE = '#7C2D12'
 
@@ -27,6 +28,7 @@ export default function Pedidos() {
   const [caja,           setCaja]           = useState(null)
   const [filtro,         setFiltro]         = useState(null) // null=todos activos, 2=cocina, 3=listo, 4=pagados
   const [loading,        setLoading]        = useState(true)
+  const [modalPedido,    setModalPedido]    = useState(null)
 
   const cargar = useCallback(async () => {
     try {
@@ -157,21 +159,14 @@ export default function Pedidos() {
             return (
               <div
                 key={p.id}
-                onClick={() => {
-                  if (p.estado_id === 4) return
-                  if (p.mesa_id) {
-                    navigate(`/pedido/${p.mesa_id}?tipo=Salon`)
-                  } else {
-                    navigate(`/pedido/takeaway/${p.id}?tipo=${p.tipo_pedido}${p.pager ? `&pager=${p.pager}` : ''}`)
-                  }
-                }}
-                                style={{
+                onClick={() => setModalPedido(p)}
+                style={{
                   background: '#fff', border: '1px solid #EDE0DB',
                   borderRadius: 14, padding: '14px 20px',
                   display: 'flex', alignItems: 'center', gap: 14,
-                  cursor: p.estado_id !== 4 ? 'pointer' : 'default',
+                  cursor: 'pointer',
                 }}
-                onMouseEnter={e => { if (p.mesa_id && p.estado_id !== 4) e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,45,18,0.08)' }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,45,18,0.08)' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none' }}
               >
                 <div style={{
@@ -208,6 +203,14 @@ export default function Pedidos() {
             )
           })}
         </div>
+      )}
+
+      {modalPedido && (
+        <ModalPedido
+          pedido={modalPedido}
+          onClose={() => setModalPedido(null)}
+          onRefresh={cargar}
+        />
       )}
     </div>
   )

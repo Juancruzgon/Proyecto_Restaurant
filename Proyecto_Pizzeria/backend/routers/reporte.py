@@ -45,12 +45,21 @@ def calcular_reporte(pedidos: list, session: Session):
     total_pedidos   = len(pedidos)
     ticket_promedio = total_ventas / total_pedidos if total_pedidos else 0
 
-    # Ventas por hora
-    por_hora = {}
+    # Ventas por hora (Modificado para contar pedidos y armar las 24hs)
+    por_hora_dict = {h: {"ventas": 0, "pedidos": 0} for h in range(24)}
     for p in pedidos:
         h = p.hora.hour if p.hora else 0
-        por_hora[h] = por_hora.get(h, 0) + float(p.total)
-    por_hora_lista = [{"hora": f"{h:02d}:00", "ventas": round(v, 2)} for h, v in sorted(por_hora.items())]
+        por_hora_dict[h]["ventas"] += float(p.total)
+        por_hora_dict[h]["pedidos"] += 1
+    
+    por_hora_lista = [
+        {
+            "hora": f"{h:02d}:00", 
+            "ventas": round(datos["ventas"], 2), 
+            "pedidos": datos["pedidos"]
+        } 
+        for h, datos in sorted(por_hora_dict.items())
+    ]
 
     # Detalles
     pedido_ids = [p.id for p in pedidos]

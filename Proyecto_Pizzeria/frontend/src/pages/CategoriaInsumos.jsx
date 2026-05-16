@@ -43,6 +43,7 @@ export default function CategoriaInsumos() {
   const [precio,            setPrecio]            = useState('')
   const [descripcion,       setDescripcion]       = useState('')
   const [unidadMedida,      setUnidadMedida]      = useState('unidad')
+  const [imagenUrl,         setImagenUrl]         = useState('')
 
   // Compra por insumo: { [insumoId]: { cantidad, monto } }
   const [compras, setCompras] = useState({})
@@ -67,9 +68,10 @@ export default function CategoriaInsumos() {
       stock_actual:  0,
       nro_insumo:    insumos.length + 1,
       unidad_medida: unidadMedida,
+      imagen_url:    imagenUrl.trim() || null,
     }).then(() => {
       cargar()
-      setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad')
+      setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad'); setImagenUrl('')
       setMostrarFormulario(false)
     })
   }
@@ -190,10 +192,14 @@ export default function CategoriaInsumos() {
               <label style={labelStyle}>Descripción</label>
               <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
+            <div>
+              <label style={labelStyle}>URL de imagen</label>
+              <input value={imagenUrl} onChange={e => setImagenUrl(e.target.value)} placeholder="https://..." style={inputStyle} />
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
-            <button onClick={() => { setMostrarFormulario(false); setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '10px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombre(''); setPrecio(''); setDescripcion(''); setUnidadMedida('unidad'); setImagenUrl('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '10px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
       )}
@@ -206,8 +212,17 @@ export default function CategoriaInsumos() {
           const c       = compras[insumo.id] || {}
 
           return (
-            <div key={insumo.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px' }}>
+            <div key={insumo.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, overflow: 'hidden' }}>
 
+              {/* Imagen */}
+              <div style={{ height: 56, background: '#F8F5F4', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {insumo.imagen_url
+                  ? <img src={insumo.imagen_url} alt={insumo.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 22 }}>📦</span>
+                }
+              </div>
+
+              <div style={{ padding: '12px 14px' }}>
               {/* Fila superior */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div>
@@ -297,6 +312,7 @@ export default function CategoriaInsumos() {
                   </div>
                 </div>
               )}
+              </div>{/* fin padding wrapper */}
             </div>
           )
         })}

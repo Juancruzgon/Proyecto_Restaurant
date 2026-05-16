@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { getHistorialRecordatorios } from '../services/api'
+import ModalPedido from '../components/ModalPedido'
 
 const MESA_OCUPADA  = 2
 const ESTADO_COCINA = 2
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [caja,           setCaja]           = useState(null)
   const [pedidosPagados, setPedidosPagados] = useState([])
   const [loading,        setLoading]        = useState(true)
+  const [modalPedido,    setModalPedido]    = useState(null)
   const [recordatorios,       setRecordatorios]       = useState([])
   const [mostrarRec,          setMostrarRec]          = useState(true)
   const [nuevoTitulo,         setNuevoTitulo]         = useState('')
@@ -105,7 +107,8 @@ export default function Dashboard() {
     setRecordatorios(res.data)
   }
 
-  const pedidosAbiertos = pedidos.filter(p => p.estado_id !== ESTADO_PAGADO)
+  const pedidosPendientesCocina = pedidosPagados.filter(p => p.listo_cocina === false)
+  const pedidosAbiertos = [...pedidos.filter(p => p.estado_id !== ESTADO_PAGADO), ...pedidosPendientesCocina]
   const listosCobrar    = pedidos.filter(p => p.estado_id === ESTADO_LISTO)
   const mesasOcupadas   = mesas.filter(m => m.estado_id === MESA_OCUPADA)
   const ventasTurno     = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
@@ -292,13 +295,16 @@ export default function Dashboard() {
           ) : (
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
               {pedidosAbiertos.map(p => {
-                const est = estadoStyle[p.estado_id] || estadoStyle[ESTADO_COCINA]
-                const clickable = !!p.mesa_id
+                const isPagado = p.estado_id === ESTADO_PAGADO
+                const est = isPagado
+                  ? { bg: '#DCFCE7', color: '#166534' }
+                  : estadoStyle[p.estado_id] || estadoStyle[ESTADO_COCINA]
+                const badgeLabel = isPagado ? 'PAGADO' : (estadoLabel[p.estado_id] || '—')
                 return (
                   <div key={p.id}
-                    onClick={() => clickable && navigate(`/pedido/${p.mesa_id}?tipo=Salon`)}
-                    style={{ display: 'flex', alignItems: 'center', padding: '12px 22px', borderBottom: '1px solid #F5EDE8', cursor: clickable ? 'pointer' : 'default' }}
-                    onMouseEnter={e => { if (clickable) e.currentTarget.style.background = '#FEF9F7' }}
+                    onClick={() => setModalPedido(p)}
+                    style={{ display: 'flex', alignItems: 'center', padding: '12px 22px', borderBottom: '1px solid #F5EDE8', cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#FEF9F7' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                   >
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: p.mesa_id ? '#FEF2EE' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: p.mesa_id ? WINE : '#6B7280', flexShrink: 0, marginRight: 12 }}>
@@ -310,7 +316,7 @@ export default function Dashboard() {
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ display: 'inline-block', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: est.bg, color: est.color, marginBottom: 3 }}>
-                        {estadoLabel[p.estado_id] || '—'}
+                        {badgeLabel}
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(p.total)}</div>
                     </div>
@@ -344,13 +350,7 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(p.total)}</div>
                     <button
-                      onClick={() => {
-                        if (p.mesa_id) {
-                          navigate(`/pedido/${p.mesa_id}?tipo=Salon`)
-                        } else {
-                          navigate(`/pedido/takeaway/${p.id}?tipo=${p.tipo_pedido}${p.pager ? `&pager=${p.pager}` : ''}`)
-                        }
-                      }}
+                      onClick={() => setModalPedido({ pedido: p, initialView: 'cobro' })}
                       style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       Cobrar →
@@ -362,6 +362,15 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {modalPedido && (
+        <ModalPedido
+          pedido={modalPedido.pedido ?? modalPedido}
+          initialView={modalPedido.initialView}
+          onClose={() => setModalPedido(null)}
+          onRefresh={cargar}
+        />
+      )}
     </div>
   )
 }
