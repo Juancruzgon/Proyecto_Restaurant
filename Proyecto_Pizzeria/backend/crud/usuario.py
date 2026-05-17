@@ -1,9 +1,9 @@
 from datetime import date
 from sqlmodel import Session, select, col
 from models.usuario import Usuario
-import schemas
+from backend import schemas
 from fastapi import HTTPException
-from auth import hashear_password
+from backend.core.auth import hashear_password
 
 def obtener_usuarios(session: Session):
     statement = select(Usuario)

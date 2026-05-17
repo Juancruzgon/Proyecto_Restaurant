@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 import pydantic
-from database import get_session
+from backend.core.database import get_session
 from models.usuario import Usuario
 from models.insumo import Insumo, MovimientoStock
 from schemas.insumo import InsumoCreate, InsumoModify
 from crud import insumo as insumo_crud
-from auth import get_current_user
+from backend.core.auth import get_current_user
 from typing import Optional
 
 class CompraCreate(pydantic.BaseModel):

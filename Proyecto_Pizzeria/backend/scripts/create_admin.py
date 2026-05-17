@@ -1,7 +1,7 @@
-from database import engine
-from models.usuario import Usuario
-from models.rol import Rol
-from auth import hashear_password
+from backend.core.database import engine
+from backend.models.usuario import Usuario
+from backend.models.rol import Rol
+from backend.core.auth import hashear_password
 from sqlmodel import Session
 
 with Session(engine) as session:

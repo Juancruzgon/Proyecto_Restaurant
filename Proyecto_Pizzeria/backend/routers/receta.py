@@ -1,10 +1,10 @@
 from sqlmodel import Session, select
-from database import get_session
+from backend.core.database import get_session
 from models.usuario import Usuario
 from models.receta import RecetaProducto
 from models.insumo import Insumo
 from schemas.insumo import RecetaProductoCreate, RecetaProductoModify
-from auth import get_current_user
+from backend.core.auth import get_current_user
 from fastapi import APIRouter, Depends, HTTPException
 
 

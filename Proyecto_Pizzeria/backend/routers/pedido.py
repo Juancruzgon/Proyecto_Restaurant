@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from database import get_session
+from backend.core.database import get_session
 from models.usuario import Usuario
 from models.caja import Caja
 from schemas.pedido import PedidoCreate, PedidoModify, DetallePedidoCreate, DetallePedidoModifyNota
@@ -20,9 +20,9 @@ from crud.pedido import (
     modificar_nota_detalle as crud_modificar_nota_detalle,
 )
 from models.pedido import Pedido
-from auth import get_current_user
-from websocket_manager import manager
-from prynter import imprimir_comanda, imprimir_ticket
+from backend.core.auth import get_current_user
+from backend.core.websocket_manager import manager
+from backend.services.printer_service import imprimir_comanda, imprimir_ticket
 import json
 import threading
 

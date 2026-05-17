@@ -4,7 +4,7 @@ from models.producto import Producto
 from models.categoria_producto import CategoriaProducto
 from schemas.producto import ProductoCreate, ProductoModify
 from fastapi import HTTPException
-from auth import hashear_password
+from backend.core.auth import hashear_password
 
 
 def obtener_productos(session: Session, categoria_id: int = None):

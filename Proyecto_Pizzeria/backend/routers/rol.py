@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
-from database import get_session
+from backend.core.database import get_session
 from models.usuario import Usuario
 from schemas.rol import RolCreate, RolModify
 from crud import rol
-from auth import get_current_user
+from backend.core.auth import get_current_user
 
 router = APIRouter(
     prefix="/roles",
