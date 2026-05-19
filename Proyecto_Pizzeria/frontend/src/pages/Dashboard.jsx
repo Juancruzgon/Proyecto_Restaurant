@@ -4,6 +4,13 @@ import api from '../services/api'
 import { getHistorialRecordatorios } from '../services/api'
 import ModalPedido from '../components/ModalPedido'
 
+const CHIP_FILTROS = [
+  { id: null, label: 'Todos' },
+  { id: 2,    label: 'En cocina' },
+  { id: 3,    label: 'Listos' },
+  { id: 4,    label: 'Pagados' },
+]
+
 const MESA_OCUPADA  = 2
 const ESTADO_COCINA = 2
 const ESTADO_LISTO  = 3
@@ -43,6 +50,8 @@ export default function Dashboard() {
   const [pedidosPagados, setPedidosPagados] = useState([])
   const [loading,        setLoading]        = useState(true)
   const [modalPedido,    setModalPedido]    = useState(null)
+  const [stockBajo,      setStockBajo]      = useState([])
+  const [filtroAbiertos, setFiltroAbiertos] = useState(null)
   const [recordatorios,       setRecordatorios]       = useState([])
   const [mostrarRec,          setMostrarRec]          = useState(true)
   const [nuevoTitulo,         setNuevoTitulo]         = useState('')
@@ -54,17 +63,19 @@ export default function Dashboard() {
 
   const cargar = useCallback(async () => {
     try {
-      const [resPedidos, resMesas, resRec, resCaja] = await Promise.all([
+      const [resPedidos, resMesas, resRec, resCaja, resStock] = await Promise.all([
         api.get('/pedidos/'),
         api.get('/mesas/'),
         api.get('/recordatorios/'),
         api.get('/caja/activa'),
+        api.get('/insumos/stock-bajo'),
       ])
       const cajaData = resCaja.data
       setPedidos(resPedidos.data.filter(p => p.activo))
       setMesas(resMesas.data.filter(m => m.activo))
       setRecordatorios(resRec.data)
       setCaja(cajaData)
+      setStockBajo(resStock.data || [])
 
       if (cajaData?.id) {
         const resPagados = await api.get(`/pedidos/?caja_id=${cajaData.id}&pagados=true`)
@@ -110,6 +121,12 @@ export default function Dashboard() {
   const pedidosPendientesCocina = pedidosPagados.filter(p => p.listo_cocina === false)
   const pedidosAbiertos = [...pedidos.filter(p => p.estado_id !== ESTADO_PAGADO), ...pedidosPendientesCocina]
   const listosCobrar    = pedidos.filter(p => p.estado_id === ESTADO_LISTO)
+
+  const pedidosFiltrados = filtroAbiertos === null
+    ? pedidosAbiertos
+    : filtroAbiertos === ESTADO_PAGADO
+      ? pedidosPendientesCocina
+      : pedidosAbiertos.filter(p => p.estado_id === filtroAbiertos)
   const mesasOcupadas   = mesas.filter(m => m.estado_id === MESA_OCUPADA)
   const ventasTurno     = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)
   const labelVentas     = caja ? 'Ventas del turno' : 'Ventas hoy'
@@ -285,16 +302,41 @@ export default function Dashboard() {
 
       {/* Dos paneles */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+        {/* Panel pedidos abiertos con chips de filtro */}
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ padding: '16px 22px', borderBottom: '1px solid #EDE0DB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>Pedidos abiertos</span>
             <button onClick={() => navigate('/pedidos')} style={{ fontSize: 12, color: WINE, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Ver todos →</button>
           </div>
-          {pedidosAbiertos.length === 0 ? (
-            <div style={{ padding: '48px 22px', textAlign: 'center', color: '#C09080', fontSize: 13 }}>No hay pedidos activos</div>
+
+          {/* Chips de filtro */}
+          <div style={{ padding: '10px 22px', borderBottom: '1px solid #F5EDE8', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {CHIP_FILTROS.map(f => {
+              const count = f.id === null ? pedidosAbiertos.length
+                : f.id === ESTADO_PAGADO ? pedidosPendientesCocina.length
+                : pedidosAbiertos.filter(p => p.estado_id === f.id).length
+              const active = filtroAbiertos === f.id
+              return (
+                <button key={f.id ?? 'all'} onClick={() => setFiltroAbiertos(f.id)}
+                  style={{ background: active ? WINE : '#F8F5F4', color: active ? '#fff' : '#5C3A2E',
+                    border: `1px solid ${active ? WINE : '#EDE0DB'}`, borderRadius: 20,
+                    padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {f.label}
+                  <span style={{ background: active ? 'rgba(255,255,255,0.25)' : '#EDE0DB', color: active ? '#fff' : '#A0786A', borderRadius: 20, padding: '0 6px', fontSize: 10 }}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {pedidosFiltrados.length === 0 ? (
+            <div style={{ padding: '48px 22px', textAlign: 'center', color: '#C09080', fontSize: 13 }}>No hay pedidos en este filtro</div>
           ) : (
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              {pedidosAbiertos.map(p => {
+            <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+              {pedidosFiltrados.map(p => {
                 const isPagado = p.estado_id === ESTADO_PAGADO
                 const est = isPagado
                   ? { bg: '#DCFCE7', color: '#166534' }
@@ -327,34 +369,34 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Panel stock bajo */}
         <div style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 16, overflow: 'hidden' }}>
           <div style={{ padding: '16px 22px', borderBottom: '1px solid #EDE0DB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>Listos para cobrar</span>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: listosCobrar.length > 0 ? '#FEF2EE' : '#F3F4F6', color: listosCobrar.length > 0 ? WINE : '#9CA3AF' }}>
-              {listosCobrar.length}
+            <span style={{ fontWeight: 600, fontSize: 14, color: '#1A0A06' }}>⚠️ Stock bajo</span>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+              background: stockBajo.length > 0 ? '#FEF2F2' : '#F3F4F6',
+              color: stockBajo.length > 0 ? '#EF4444' : '#9CA3AF' }}>
+              {stockBajo.length}
             </span>
           </div>
-          {listosCobrar.length === 0 ? (
-            <div style={{ padding: '48px 22px', textAlign: 'center', color: '#C09080', fontSize: 13 }}>Sin pedidos pendientes de cobro</div>
+          {stockBajo.length === 0 ? (
+            <div style={{ padding: '48px 22px', textAlign: 'center', color: '#C09080', fontSize: 13 }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+              Stock en orden
+            </div>
           ) : (
             <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              {listosCobrar.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 22px', borderBottom: '1px solid #F5EDE8' }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#166534', flexShrink: 0, marginRight: 12 }}>
-                    {p.mesa_id ? `M${p.mesa_id}` : (p.tipo_pedido || 'XX').slice(0, 2).toUpperCase()}
+              {stockBajo.map(i => (
+                <div key={i.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 22px', borderBottom: '1px solid #F5EDE8', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                    📦
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06' }}>{p.mesa_id ? `Mesa ${p.mesa_id}` : p.tipo_pedido}</div>
-                    <div style={{ fontSize: 11, color: '#A0786A', marginTop: 1 }}>#{p.nro_pedido} · {fmtHora(p.hora)}</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1A0A06' }}>{fmtPeso(p.total)}</div>
-                    <button
-                      onClick={() => setModalPedido({ pedido: p, initialView: 'cobro' })}
-                      style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      Cobrar →
-                    </button>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1A0A06', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.nombre}</div>
+                    <div style={{ fontSize: 11, color: '#A0786A', marginTop: 2 }}>
+                      Stock: <b style={{ color: i.stock_actual <= 0 ? '#EF4444' : '#F59E0B' }}>{i.stock_actual}</b>
+                      {' '}/ mín {i.stock_minimo} {i.unidad_medida}
+                    </div>
                   </div>
                 </div>
               ))}

@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { getCajaActiva, abrirCaja, cerrarCaja } from '../services/api'
+import { getCajaActiva, abrirCaja, cerrarCaja, getConfiguracion } from '../services/api'
 
 const WINE = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
 const WINE_MID = '#F3D5CC'
 
-const navItems = [
-  { to: '/dashboard', icon: '▣',    label: 'Dashboard' },
-  { to: '/pedidos',   icon: '📋',   label: 'Pedidos' },
-  { to: '/mesas',     icon: '⊞',    label: 'Mesas' },
-  { to: '/productos', icon: '🛒',   label: 'Productos', adminOnly: true },
-  { to: '/insumos',   icon: '📦',   label: 'Insumos',   adminOnly: true },
-  { to: '/gastos',    icon: '💰',   label: 'Gastos',    adminOnly: true },
-  { to: '/usuarios',  icon: '👥',   label: 'Usuarios',  adminOnly: true },
-  { to: '/reportes',  icon: '📊',   label: 'Reportes',  adminOnly: true },
-  { to: '/cocina',    icon: '👨‍🍳',  label: 'Cocina',    adminOnly: true },
+const BASE_NAV_ITEMS = [
+  { to: '/dashboard',      icon: '▣',    label: 'Dashboard' },
+  { to: '/pedidos',        icon: '📋',   label: 'Pedidos' },
+  { to: '/mesas',          icon: '⊞',    label: 'Mesas' },
+  { to: '/productos',      icon: '🛒',   label: 'Productos',     adminOnly: true },
+  { to: '/insumos',        icon: '📦',   label: 'Insumos',       adminOnly: true },
+  { to: '/gastos',         icon: '💰',   label: 'Gastos',        adminOnly: true },
+  { to: '/usuarios',       icon: '👥',   label: 'Usuarios',      adminOnly: true },
+  { to: '/reportes',       icon: '📊',   label: 'Reportes',      adminOnly: true },
+  { to: '/cocina',         icon: '👨‍🍳',  label: 'Cocina',        adminOnly: true, cocinaOnly: true },
+  { to: '/configuracion',  icon: '⚙️',   label: 'Configuración', adminOnly: true },
 ]
 
 export default function Layout({ children }) {
@@ -27,6 +28,7 @@ export default function Layout({ children }) {
 
   const [caja,           setCaja]           = useState(null)
   const [loadingCaja,    setLoadingCaja]    = useState(false)
+  const [config,         setConfig]         = useState(null)
 
   const cargarCaja = async () => {
     try {
@@ -37,7 +39,10 @@ export default function Layout({ children }) {
     }
   }
 
-  useEffect(() => { cargarCaja() }, [])
+  useEffect(() => {
+    cargarCaja()
+    getConfiguracion().then(data => setConfig(data)).catch(() => setConfig({ mostrar_cocina: true }))
+  }, [])
 
   const handleAbrirCaja = async () => {
     setLoadingCaja(true)
@@ -72,6 +77,10 @@ export default function Layout({ children }) {
     navigate('/')
   }
 
+  const navItems = BASE_NAV_ITEMS.filter(i => {
+    if (i.cocinaOnly) return config?.mostrar_cocina !== false
+    return true
+  })
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
 
   return (
@@ -80,11 +89,19 @@ export default function Layout({ children }) {
       <aside style={{ width: 220, minWidth: 220, background: '#fff', borderRight: '1px solid #EDE0DB', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' }}>
 
         {/* Logo */}
-        <div style={{ padding: '28px 24px 20px', borderBottom: '1px solid #EDE0DB' }}>
+        <div style={{ padding: '20px 18px 16px', borderBottom: '1px solid #EDE0DB' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🍕</div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#1A0A06', letterSpacing: '-0.3px' }}>Pizzería</div>
+            {config?.logo_url ? (
+              <img src={config.logo_url} alt="logo"
+                style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                onError={e => { e.target.style.display = 'none' }} />
+            ) : (
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🍕</div>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#1A0A06', letterSpacing: '-0.3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {config?.nombre_local || 'Restaurante'}
+              </div>
               <div style={{ fontSize: 11, color: '#A0786A', marginTop: 1 }}>Panel de gestión</div>
             </div>
           </div>

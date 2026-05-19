@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api, { getSalones, getMesas, getCajaActiva } from '../services/api'
-import ModalPedido from '../components/ModalPedido'
 
 const WINE = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -32,13 +31,13 @@ export default function NuevoPedido() {
   const navigate = useNavigate()
 
   const [tipo, setTipo] = useState(null)
-  const [salones, setSalones] = useState([])
-  const [salonActivo, setSalonActivo] = useState(null)
-  const [mesas, setMesas] = useState([])
-  const [pedidosActivos, setPedidosActivos] = useState([])
-  const [modalPedido, setModalPedido] = useState(null)
+  const [salones,      setSalones]      = useState([])
+  const [salonActivo,  setSalonActivo]  = useState(null)
+  const [mesas,        setMesas]        = useState([])
+  const [mesaOcupada,  setMesaOcupada]  = useState(null) // mesa clickeada con estado ocupado
 
-  const [pager, setPager] = useState('')
+  const [pager,        setPager]        = useState('')
+  const [cantPersonas, setCantPersonas] = useState('')
 
   const [nombreCliente, setNombreCliente] = useState('')
   const [telefonoCliente, setTelefonoCliente] = useState('')
@@ -63,16 +62,9 @@ export default function NuevoPedido() {
   }, [])
 
   const cargarMesas = useCallback(async (salonId) => {
-    const [data, resPedidos] = await Promise.all([
-      getMesas(salonId),
-      api.get('/pedidos/'),
-    ])
+    const data = await getMesas(salonId)
 
     setMesas(data)
-
-    setPedidosActivos(
-      resPedidos.data.filter(p => p.activo)
-    )
 
     data.forEach((m, i) => {
       posiciones.current[m.id] =
@@ -91,15 +83,11 @@ export default function NuevoPedido() {
 
   const handleClickMesa = (mesa) => {
     if (mesa.estado_id === 1) {
-      navigate(`/pedido/${mesa.id}?tipo=Salon`)
+      const params = new URLSearchParams({ tipo: 'Salon' })
+      if (cantPersonas) params.set('personas', cantPersonas)
+      navigate(`/pedido/${mesa.id}?${params.toString()}`)
     } else {
-      const pedido = pedidosActivos.find(
-        p => p.mesa_id === mesa.id
-      )
-
-      if (pedido) {
-        setModalPedido(pedido)
-      }
+      setMesaOcupada(mesa)
     }
   }
 
@@ -385,14 +373,21 @@ const canvasDisplayH = canvasH * scale
             ))}
           </div>
 
-          <div
-            style={{
-              fontSize: 13,
-              color: '#A0786A',
-              marginBottom: 14,
-            }}
-          >
-            Tocá una mesa libre para abrir el pedido
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: '#A0786A' }}>
+              Tocá una mesa libre para abrir el pedido
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+              <label style={{ fontSize: 13, color: '#5C3A2E', fontWeight: 500, whiteSpace: 'nowrap' }}>Personas:</label>
+              <input
+                type="number"
+                min="1"
+                value={cantPersonas}
+                onChange={e => setCantPersonas(e.target.value)}
+                placeholder="—"
+                style={{ width: 70, padding: '6px 10px', border: '1px solid #EDE0DB', borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', textAlign: 'center' }}
+              />
+            </div>
           </div>
 
           {/* CANVAS */}
@@ -921,17 +916,33 @@ const canvasDisplayH = canvasH * scale
         </div>
       )}
 
-      {modalPedido && (
-        <ModalPedido
-          pedido={modalPedido}
-          onClose={() => {
-            setModalPedido(null)
-            cargarMesas(salonActivo)
-          }}
-          onRefresh={() =>
-            cargarMesas(salonActivo)
-          }
-        />
+      {/* Modal mesa ocupada */}
+      {mesaOcupada && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '32px 28px', width: 360, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 36, marginBottom: 12, textAlign: 'center' }}>🔴</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1A0A06', marginBottom: 8, textAlign: 'center' }}>
+              Mesa {mesaOcupada.nro_id} ocupada
+            </div>
+            <div style={{ fontSize: 13, color: '#A0786A', textAlign: 'center', lineHeight: 1.5, marginBottom: 28 }}>
+              Esta mesa ya tiene un pedido activo.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => navigate(`/pedido/${mesaOcupada.id}?tipo=Salon`)}
+                style={{ background: WINE, color: '#fff', border: 'none', borderRadius: 12, padding: '12px', fontSize: 14, fontWeight: 600, cursor: 'pointer', width: '100%' }}
+              >
+                Ver pedido actual →
+              </button>
+              <button
+                onClick={() => setMesaOcupada(null)}
+                style={{ background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 12, padding: '11px', fontSize: 14, fontWeight: 500, cursor: 'pointer', width: '100%' }}
+              >
+                ← Volver al mapa
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

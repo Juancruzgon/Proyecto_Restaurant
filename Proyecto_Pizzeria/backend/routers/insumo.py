@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 import pydantic
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.insumo import Insumo, MovimientoStock
 from schemas.insumo import InsumoCreate, InsumoModify
 from crud import insumo as insumo_crud
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 from typing import Optional
 
 class CompraCreate(pydantic.BaseModel):
@@ -25,6 +25,11 @@ router = APIRouter(
 @router.get("/")
 def obtener_insumos(categoria_id: int = None, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
     return insumo_crud.obtener_insumos(session, categoria_id)
+
+@router.get("/stock-bajo")
+def obtener_stock_bajo(session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):
+    insumos = session.exec(select(Insumo)).all()
+    return [i for i in insumos if i.stock_minimo > 0 and i.stock_actual <= i.stock_minimo]
 
 @router.get("/{insumo_id}")
 def obtener_insumo(insumo_id: int, session: Session = Depends(get_session), current_user: Usuario = Depends(get_current_user)):

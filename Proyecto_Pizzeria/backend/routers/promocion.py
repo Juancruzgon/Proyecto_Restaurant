@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from schemas.promocion import PromocionCreate, PromocionModify, PromocionProductoCreate
 from crud import promocion
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 
 router = APIRouter(
     prefix="/promociones",

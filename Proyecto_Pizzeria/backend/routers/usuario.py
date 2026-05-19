@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from schemas.usuario import UsuarioCreate, UsuarioModify
 from crud import usuario as usuario_crud
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 
 router = APIRouter(
     prefix="/usuarios",

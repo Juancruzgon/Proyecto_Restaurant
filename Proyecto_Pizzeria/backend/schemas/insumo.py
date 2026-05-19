@@ -12,6 +12,7 @@ class InsumoCreate(pydantic.BaseModel):
     unidad_medida: str = "unidad"
     tipo: str = "sin_receta"
     imagen_url: Optional[str] = None
+    stock_minimo: Optional[float] = None
 
 class InsumoModify(pydantic.BaseModel):
     nombre: Optional[str] = None
@@ -22,6 +23,7 @@ class InsumoModify(pydantic.BaseModel):
     unidad_medida: Optional[str] = None
     tipo: Optional[str] = None
     imagen_url: Optional[str] = None
+    stock_minimo: Optional[float] = None
 
 class RecetaProductoCreate(pydantic.BaseModel):
     producto_id: int

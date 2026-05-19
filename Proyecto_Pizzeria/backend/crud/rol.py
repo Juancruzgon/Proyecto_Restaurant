@@ -3,7 +3,7 @@ from sqlmodel import Session, select, col
 from models.rol import Rol
 import schemas
 from fastapi import HTTPException
-from backend.core.auth import hashear_password
+from core.auth import hashear_password
 
 def obtener_roles(session: Session):
     statement = select(Rol)

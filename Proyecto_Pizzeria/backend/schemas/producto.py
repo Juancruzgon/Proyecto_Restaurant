@@ -20,3 +20,4 @@ class ProductoModify(pydantic.BaseModel):
     imagen_url: Optional[str] = None
     tipo: Optional[str] = None
     insumo_id: Optional[int] = None
+    agotado: Optional[bool] = None

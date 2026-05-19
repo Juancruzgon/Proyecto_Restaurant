@@ -30,6 +30,7 @@ export default function EditarInsumo() {
   const [catId,         setCatId]         = useState('')
   const [unidadMedida,  setUnidadMedida]  = useState('unidad')
   const [imagenUrl,     setImagenUrl]     = useState('')
+  const [stockMinimo,   setStockMinimo]   = useState(0)
   const [categorias,    setCategorias]    = useState([])
 
   // Ajuste
@@ -47,6 +48,7 @@ export default function EditarInsumo() {
       setCatId(data.categoria_id)
       setUnidadMedida(data.unidad_medida || 'unidad')
       setImagenUrl(data.imagen_url || '')
+      setStockMinimo(data.stock_minimo ?? 0)
     })
   }
 
@@ -63,6 +65,7 @@ export default function EditarInsumo() {
     if (catId)       datos.categoria_id  = parseInt(catId)
     datos.unidad_medida = unidadMedida
     datos.imagen_url    = imagenUrl.trim() || null
+    datos.stock_minimo  = parseFloat(stockMinimo) || 0
     modificarInsumo(insumoId, datos).then(() => navigate(`/insumos/${categoriaId}`))
   }
 
@@ -146,6 +149,13 @@ export default function EditarInsumo() {
                 <option value="">Seleccionar categoría</option>
                 {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Stock mínimo ({insumo.unidad_medida})</label>
+              <input type="number" step="0.01" value={stockMinimo} onChange={e => setStockMinimo(e.target.value)} style={inputStyle} />
+              <div style={{ fontSize: 11, color: '#A0786A', marginTop: 4 }}>
+                Alerta cuando el stock sea igual o menor. 0 = sin alerta.
+              </div>
             </div>
             <div>
               <label style={labelStyle}>URL de imagen</label>

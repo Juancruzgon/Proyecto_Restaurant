@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.recordatorio import Recordatorio
 from schemas.recordatorio import RecordatorioCreate, RecordatorioModify
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 
 router = APIRouter(
     prefix="/recordatorios",

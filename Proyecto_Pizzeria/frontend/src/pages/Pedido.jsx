@@ -35,6 +35,7 @@ export default function Pedido() {
   const nombreParam     = searchParams.get('nombre') || null
   const telefonoParam   = searchParams.get('telefono') || null
   const direccionParam  = searchParams.get('direccion') || null
+  const personasParam   = searchParams.get('personas') || null
   const esSalon         = tipoPedido === 'Salon' && mesaId && mesaId !== 'nuevo'
 
   const [pedido,   setPedido]   = useState(null)
@@ -171,13 +172,14 @@ export default function Pedido() {
   const handleCrearPedido = async () => {
     if (itemsTemp.length === 0) return
     const { data: nuevo } = await api.post('/pedidos/', {
-      tipo_pedido:       tipoPedido,
-      usuario_id:        parseInt(usuarioId),
-      mesa_id:           esSalon ? parseInt(mesaId) : null,
-      pager:             tipoPedido === 'Takeaway' ? pagerParam : null,
-      nombre_cliente:    tipoPedido === 'Delivery' ? nombreParam : null,
-      telefono_cliente:  tipoPedido === 'Delivery' ? telefonoParam : null,
-      direccion_cliente: tipoPedido === 'Delivery' ? direccionParam : null,
+      tipo_pedido:        tipoPedido,
+      usuario_id:         parseInt(usuarioId),
+      mesa_id:            esSalon ? parseInt(mesaId) : null,
+      pager:              tipoPedido === 'Takeaway' ? pagerParam : null,
+      nombre_cliente:     tipoPedido === 'Delivery' ? nombreParam : null,
+      telefono_cliente:   tipoPedido === 'Delivery' ? telefonoParam : null,
+      direccion_cliente:  tipoPedido === 'Delivery' ? direccionParam : null,
+      ...(personasParam ? { cantidad_personas: parseInt(personasParam) } : {}),
     })
     for (const i of itemsTemp) {
       await agregarDetalle(nuevo.id, i.producto_id, i.cantidad, i.nota || null)
@@ -253,25 +255,31 @@ export default function Pedido() {
                 {productosFiltrados.map(prod => {
                   const cant = cantidadEnPedido(prod.id)
                   return (
-                    <div key={prod.id} style={{ background: '#fff', border: `2px solid ${cant > 0 ? WINE : '#EDE0DB'}`, borderRadius: 14, overflow: 'hidden', boxShadow: cant > 0 ? '0 4px 12px rgba(124,45,18,0.1)' : 'none' }}>
-                      <div style={{ height: 90, background: prod.imagen_url ? 'transparent' : (cant > 0 ? WINE_LIGHT : '#F8F5F4'), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    <div key={prod.id} style={{ background: '#fff', border: `2px solid ${prod.agotado ? '#EDE0DB' : cant > 0 ? WINE : '#EDE0DB'}`, borderRadius: 14, overflow: 'hidden', boxShadow: cant > 0 && !prod.agotado ? '0 4px 12px rgba(124,45,18,0.1)' : 'none', opacity: prod.agotado ? 0.55 : 1, position: 'relative' }}>
+                      {prod.agotado && (
+                        <div style={{ position: 'absolute', top: 7, right: 7, background: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 5, textTransform: 'uppercase', zIndex: 1, letterSpacing: '0.04em' }}>
+                          Agotado
+                        </div>
+                      )}
+                      <div style={{ height: 90, background: prod.imagen_url ? 'transparent' : (cant > 0 && !prod.agotado ? WINE_LIGHT : '#F8F5F4'), display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                         {prod.imagen_url ? <img src={prod.imagen_url} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 32 }}>🍕</span>}
                       </div>
                       <div style={{ padding: '9px 11px 11px' }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: '#1A0A06', marginBottom: 1, lineHeight: 1.3 }}>{prod.nombre}</div>
                         {prod.descripcion && <div style={{ fontSize: 10, color: '#A0786A', marginBottom: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.descripcion}</div>}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: WINE }}>{fmtPeso(prod.precio)}</span>
-                          {cant === 0
-                            ? <button onClick={() => handleAgregar(prod)} style={{ width: 26, height: 26, borderRadius: 8, background: WINE, color: '#fff', border: 'none', fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                            : (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <button onClick={() => handleRestar(prod.id)} style={{ width: 22, height: 22, borderRadius: 6, background: '#F5EDE8', border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: WINE, minWidth: 12, textAlign: 'center' }}>{cant}</span>
-                                <button onClick={() => handleAgregar(prod)} style={{ width: 22, height: 22, borderRadius: 6, background: WINE_LIGHT, border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                              </div>
-                            )
-                          }
+                          <span style={{ fontSize: 13, fontWeight: 700, color: prod.agotado ? '#9CA3AF' : WINE }}>{fmtPeso(prod.precio)}</span>
+                          {prod.agotado ? (
+                            <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 500 }}>No disponible</div>
+                          ) : cant === 0 ? (
+                            <button onClick={() => handleAgregar(prod)} style={{ width: 26, height: 26, borderRadius: 8, background: WINE, color: '#fff', border: 'none', fontSize: 17, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <button onClick={() => handleRestar(prod.id)} style={{ width: 22, height: 22, borderRadius: 6, background: '#F5EDE8', border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: WINE, minWidth: 12, textAlign: 'center' }}>{cant}</span>
+                              <button onClick={() => handleAgregar(prod)} style={{ width: 22, height: 22, borderRadius: 6, background: WINE_LIGHT, border: 'none', fontSize: 13, cursor: 'pointer', color: WINE, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -389,6 +397,16 @@ export default function Pedido() {
         </div>
 
         <div style={{ borderTop: '1px solid #EDE0DB', padding: '14px 20px' }}>
+          {pedido && Number(pedido.total_cubiertos) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #F5EDE8' }}>
+              <span style={{ fontSize: 12, color: '#5C3A2E', fontWeight: 500 }}>
+                🍽 Cubiertos ({pedido.cantidad_personas} pers.)
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#5C3A2E' }}>
+                {fmtPeso(pedido.total_cubiertos)}
+              </span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 13, color: '#A0786A', fontWeight: 500 }}>Total</span>
             <span style={{ fontSize: 22, fontWeight: 800, color: '#1A0A06', letterSpacing: '-0.5px' }}>

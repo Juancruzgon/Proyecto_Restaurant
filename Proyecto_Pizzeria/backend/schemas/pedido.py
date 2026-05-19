@@ -10,6 +10,7 @@ class PedidoCreate(pydantic.BaseModel):
     nombre_cliente: Optional[str] = None
     telefono_cliente: Optional[str] = None
     direccion_cliente: Optional[str] = None
+    cantidad_personas: Optional[int] = None
 
 class PedidoModify(pydantic.BaseModel):
     tipo_pedido: Optional[str] = None

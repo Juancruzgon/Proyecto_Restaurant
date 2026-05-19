@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.pago_parcial import PagoParcial
 from models.pedido import Pedido, DetallePedido
 from models.producto import Producto
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 from decimal import Decimal
 import pydantic
 from typing import List

@@ -14,6 +14,7 @@ class Insumo(SQLModel, table=True):
     unidad_medida: str = Field(default="unidad")  # kg, litros, unidad, gr, ml
     tipo: str = Field(default="sin_receta")        # sin_receta / con_receta
     imagen_url: Optional[str] = Field(default=None)
+    stock_minimo: float = Field(default=0)
 
 class MovimientoStock(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

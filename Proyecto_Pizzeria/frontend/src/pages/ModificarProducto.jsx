@@ -33,6 +33,8 @@ export default function ModificarProducto() {
   const [descuento,   setDescuento]   = useState('')
   const [tipo,        setTipo]        = useState('sin_receta')
   const [insumoId,    setInsumoId]    = useState('')
+  const [agotado,     setAgotado]     = useState(false)
+  const isAdmin = localStorage.getItem('rol_id') === '1'
 
   // Receta
   const [receta,       setReceta]       = useState([])
@@ -54,6 +56,7 @@ export default function ModificarProducto() {
       setDescuento(data.descuento || '')
       setTipo(data.tipo || 'sin_receta')
       setInsumoId(data.insumo_id || '')
+      setAgotado(data.agotado ?? false)
     })
     cargarReceta()
     getInsumos().then(data => setInsumos(data))
@@ -69,6 +72,7 @@ export default function ModificarProducto() {
       descuento: descuento ? parseInt(descuento) : null,
       tipo,
       insumo_id: tipo === 'sin_receta' && insumoId ? parseInt(insumoId) : null,
+      agotado,
     }).then(() => navigate(`/productos/${producto.categoria_id}`))
   }
 
@@ -148,6 +152,36 @@ export default function ModificarProducto() {
             <label style={labelStyle}>Descuento (%)</label>
             <input type="number" min="0" max="100" value={descuento} onChange={e => setDescuento(e.target.value)} placeholder="0" style={inputStyle} />
           </div>
+
+          {/* Estado agotado — solo admin */}
+          {isAdmin && (
+            <div style={{ padding: '12px 14px', borderRadius: 10, background: agotado ? '#FEF2F2' : '#F8F5F4', border: `1px solid ${agotado ? '#FECACA' : '#EDE0DB'}`, transition: 'all 0.2s' }}>
+              <div
+                onClick={() => setAgotado(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', userSelect: 'none' }}
+              >
+                <div style={{
+                  width: 40, height: 22, borderRadius: 11,
+                  background: agotado ? '#EF4444' : '#D1D5DB',
+                  position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: agotado ? 20 : 2,
+                    width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: agotado ? '#EF4444' : '#9CA3AF' }}>
+                    {agotado ? 'Producto agotado' : 'Disponible'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#A0786A', marginTop: 1 }}>
+                    {agotado ? 'Se muestra en la carta pero no se puede agregar al pedido' : 'Se puede agregar al pedido normalmente'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tipo de stock */}
           <div>

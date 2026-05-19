@@ -2,8 +2,6 @@ import os
 from escpos.printer import Network
 from models.pedido import Pedido
 
-NOMBRE_LOCAL = os.getenv("NOMBRE_LOCAL", "Restaurante")
-
 def _conectar(ip: str, puerto: int = 9100):
     return Network(ip, port=puerto)
 
@@ -52,12 +50,12 @@ def imprimir_comanda(pedido: Pedido, detalles: list, ip_impresora: str, puerto: 
         print(f"Error al imprimir comanda: {e}")
 
 
-def imprimir_ticket(pedido: Pedido, detalles: list, ip_impresora: str, puerto: int = 9100):
+def imprimir_ticket(pedido: Pedido, detalles: list, ip_impresora: str, puerto: int = 9100, nombre_local: str = "Restaurante"):
     try:
         p = _conectar(ip_impresora, puerto)
 
         p.set(align='center', bold=True, double_height=True, double_width=True)
-        p.text(f"{NOMBRE_LOCAL}\n")
+        p.text(f"{nombre_local}\n")
         p.set(align='center', bold=False, double_height=False, double_width=False)
         p.text("------------------------\n")
 

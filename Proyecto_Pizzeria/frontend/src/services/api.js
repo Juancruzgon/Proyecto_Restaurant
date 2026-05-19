@@ -112,15 +112,14 @@ export const modificarNota = async (pedidoId, detalleId, nota) => {
   return response.data
 }
 
-export const crearPedido = async (mesaId, usuarioId, tipoPedido) => {
+export const crearPedido = async (mesaId, usuarioId, tipoPedido, cantidadPersonas = null) => {
   const response = await api.post('/pedidos/', {
-    mesa_id: parseInt(mesaId),
+    mesa_id: mesaId ? parseInt(mesaId) : null,
     usuario_id: parseInt(usuarioId),
-    tipo_pedido: tipoPedido
+    tipo_pedido: tipoPedido,
+    ...(cantidadPersonas ? { cantidad_personas: parseInt(cantidadPersonas) } : {}),
   })
   return response.data
-
-  
 }
 
 export const getPedidos = async (params = {}) => {
@@ -374,5 +373,20 @@ export const getCajasPorFecha = async (fecha) => {
 
 export const imprimirNuevosProductos = async (pedidoId) => {
   const response = await api.post(`/pedidos/${pedidoId}/imprimir-nuevos`)
+  return response.data
+}
+
+export const getStockBajo = async () => {
+  const response = await api.get('/insumos/stock-bajo')
+  return response.data
+}
+
+export const getConfiguracion = async () => {
+  const response = await api.get('/configuracion/')
+  return response.data
+}
+
+export const actualizarConfiguracion = async (data) => {
+  const response = await api.put('/configuracion/', data)
   return response.data
 }

@@ -76,13 +76,16 @@ export default function Pedidos() {
     ? pedidosActivos
     : filtro === 4
       ? pedidosPagados
-      : pedidosActivos.filter(p => p.estado_id === filtro)
+      : filtro === 'todos'
+        ? todosPedidos
+        : pedidosActivos.filter(p => p.estado_id === filtro)
 
   const FILTROS = [
-    { id: null, label: 'Activos',   count: pedidosActivos.length },
-    { id: 2,    label: 'En cocina', count: pedidosActivos.filter(p => p.estado_id === 2).length },
-    { id: 3,    label: 'Listos',    count: pedidosActivos.filter(p => p.estado_id === 3).length },
-    { id: 4,    label: caja ? 'Pagados del turno' : 'Pagados', count: pedidosPagados.length },
+    { id: null,    label: 'Activos',   count: pedidosActivos.length },
+    { id: 2,       label: 'En cocina', count: pedidosActivos.filter(p => p.estado_id === 2).length },
+    { id: 3,       label: 'Listos',    count: pedidosActivos.filter(p => p.estado_id === 3).length },
+    { id: 4,       label: caja ? 'Pagados del turno' : 'Pagados', count: pedidosPagados.length },
+    { id: 'todos', label: 'Todos hoy', count: todosPedidos.length },
   ]
 
   const totalTurno = pedidosPagados.reduce((acc, p) => acc + Number(p.total), 0)

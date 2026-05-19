@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.caja import Caja
 from schemas.pedido import PedidoCreate, PedidoModify, DetallePedidoCreate, DetallePedidoModifyNota
@@ -20,9 +20,10 @@ from crud.pedido import (
     modificar_nota_detalle as crud_modificar_nota_detalle,
 )
 from models.pedido import Pedido
-from backend.core.auth import get_current_user
-from backend.core.websocket_manager import manager
-from backend.services.printer_service import imprimir_comanda, imprimir_ticket
+from models.configuracion import Configuracion
+from core.auth import get_current_user
+from core.websocket_manager import manager
+from services.printer_service import imprimir_comanda, imprimir_ticket
 import json
 import threading
 
@@ -87,10 +88,10 @@ async def cobrar_pedido(
     resultado = crud_cobrar_pedido(pedido_id, data.pagos, session)
     await manager.broadcast(json.dumps({"evento": "estado_pedido", "pedido_id": pedido_id, "estado_id": 4}))
     detalles = crud_mostrar_detalle_pedido(pedido_id, session)
-    ip     = os.getenv("TICKET_PRINTER_IP")
-    puerto = int(os.getenv("TICKET_PRINTER_PORT", 9100))
-    if ip:
-        threading.Thread(target=imprimir_ticket, args=(resultado, detalles, ip, puerto)).start()
+    config = session.get(Configuracion, 1)
+    if config and config.imprimir_ticket_cliente and config.printer_ticket_ip:
+        nombre = config.nombre_local or "Restaurante"
+        threading.Thread(target=imprimir_ticket, args=(resultado, detalles, config.printer_ticket_ip, config.printer_ticket_puerto, nombre)).start()
     return resultado
 
 @router.post("/{pedido_id}/detalle")
@@ -137,15 +138,19 @@ def imprimir_comanda_pedido(pedido_id: int, session: Session = Depends(get_sessi
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     detalles = crud_mostrar_detalle_pedido(pedido_id, session)
-    ip     = os.getenv("PRINTER_IP")
-    puerto = int(os.getenv("PRINTER_PORT", 9100))
-    if not ip:
-        raise HTTPException(status_code=500, detail="PRINTER_IP no configurada")
+    config = session.get(Configuracion, 1)
+    if not config or not config.imprimir_comanda_cocina or not config.printer_cocina_ip:
+        # Actualizar ultimo_detalle_impreso aunque no imprima
+        if detalles:
+            pedido.ultimo_detalle_impreso = max(d["id"] for d in detalles)
+            session.add(pedido)
+            session.commit()
+        return {"detail": "Impresión no configurada — comanda guardada"}
     if detalles:
         pedido.ultimo_detalle_impreso = max(d["id"] for d in detalles)
         session.add(pedido)
         session.commit()
-    threading.Thread(target=imprimir_comanda, args=(pedido, detalles, ip, puerto)).start()
+    threading.Thread(target=imprimir_comanda, args=(pedido, detalles, config.printer_cocina_ip, config.printer_cocina_puerto)).start()
     return {"detail": "Comanda enviada a imprimir"}
 
 
@@ -154,10 +159,7 @@ def imprimir_nuevos_productos(pedido_id: int, session: Session = Depends(get_ses
     pedido = session.get(Pedido, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    ip     = os.getenv("PRINTER_IP")
-    puerto = int(os.getenv("PRINTER_PORT", 9100))
-    if not ip:
-        raise HTTPException(status_code=500, detail="PRINTER_IP no configurada")
+    config = session.get(Configuracion, 1)
     todos = crud_mostrar_detalle_pedido(pedido_id, session)
     nuevos = [d for d in todos if d["id"] > (pedido.ultimo_detalle_impreso or 0)]
     if not nuevos:
@@ -165,7 +167,8 @@ def imprimir_nuevos_productos(pedido_id: int, session: Session = Depends(get_ses
     pedido.ultimo_detalle_impreso = max(d["id"] for d in nuevos)
     session.add(pedido)
     session.commit()
-    threading.Thread(target=imprimir_comanda, args=(pedido, nuevos, ip, puerto)).start()
+    if config and config.imprimir_comanda_cocina and config.printer_cocina_ip:
+        threading.Thread(target=imprimir_comanda, args=(pedido, nuevos, config.printer_cocina_ip, config.printer_cocina_puerto)).start()
     return {"detail": "Nuevos productos enviados a imprimir"}
 
 @router.post("/{pedido_id}/imprimir-ticket")
@@ -174,9 +177,9 @@ def imprimir_ticket_pedido(pedido_id: int, session: Session = Depends(get_sessio
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     detalles = crud_mostrar_detalle_pedido(pedido_id, session)
-    ip     = os.getenv("TICKET_PRINTER_IP")
-    puerto = int(os.getenv("TICKET_PRINTER_PORT", 9100))
-    if not ip:
-        raise HTTPException(status_code=500, detail="TICKET_PRINTER_IP no configurada")
-    threading.Thread(target=imprimir_ticket, args=(pedido, detalles, ip, puerto)).start()
+    config = session.get(Configuracion, 1)
+    if not config or not config.imprimir_ticket_cliente or not config.printer_ticket_ip:
+        raise HTTPException(status_code=500, detail="Impresora de ticket no configurada")
+    nombre = config.nombre_local or "Restaurante"
+    threading.Thread(target=imprimir_ticket, args=(pedido, detalles, config.printer_ticket_ip, config.printer_ticket_puerto, nombre)).start()
     return {"detail": "Ticket enviado a imprimir"}

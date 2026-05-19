@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.mesa import Mesa
 from schemas.mesa import MesaCreate, MesaModify, MesaPosicion
 from crud import mesa as mesa_crud
-from backend.core.auth import get_current_user
-from backend.core.websocket_manager import manager
+from core.auth import get_current_user
+from core.websocket_manager import manager
 import json
 
 router = APIRouter(

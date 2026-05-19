@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.producto import Producto
 from schemas.producto import ProductoCreate, ProductoModify
 from crud import producto as producto_crud
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 
 router = APIRouter(
     prefix="/productos",

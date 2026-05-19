@@ -2,14 +2,14 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from sqlalchemy import func
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.pedido import Pedido, DetallePedido
 from models.producto import Producto
 from models.categoria_producto import CategoriaProducto
 from models.caja import Caja
 from models.pago import Pago
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 from datetime import date
 from decimal import Decimal
 

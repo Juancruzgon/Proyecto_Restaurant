@@ -22,6 +22,8 @@ class Pedido(SQLModel, table=True):
     telefono_cliente: Optional[str] = Field(default=None)
     direccion_cliente: Optional[str] = Field(default=None)
     listo_cocina: bool = Field(default=True)
+    cantidad_personas: Optional[int] = Field(default=None)
+    total_cubiertos: Decimal = Field(default=0, max_digits=10, decimal_places=2)
 
 class DetallePedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

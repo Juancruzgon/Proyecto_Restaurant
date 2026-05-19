@@ -14,6 +14,7 @@ export default function Gastos() {
   const [categorias,        setCategorias]        = useState([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [nombreCategoria,   setNombreCategoria]   = useState('')
+  const [imagenUrl,         setImagenUrl]         = useState('')
   const [todosGastos,       setTodosGastos]       = useState([])
   const [mostrarTodos,      setMostrarTodos]      = useState(false)
 
@@ -22,9 +23,10 @@ export default function Gastos() {
 
   const handleCrear = () => {
     if (!nombreCategoria.trim()) return
-    crearCategoriaGasto({ nombre: nombreCategoria }).then(() => {
+    crearCategoriaGasto({ nombre: nombreCategoria, imagen_url: imagenUrl.trim() || null }).then(() => {
       cargar()
       setNombreCategoria('')
+      setImagenUrl('')
       setMostrarFormulario(false)
     })
   }
@@ -65,11 +67,17 @@ export default function Gastos() {
             onChange={e => setNombreCategoria(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCrear()}
             placeholder="Nombre de la categoría"
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid #EDE0DB', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 10 }}
+          />
+          <input
+            value={imagenUrl}
+            onChange={e => setImagenUrl(e.target.value)}
+            placeholder="URL de imagen (opcional)"
             style={{ width: '100%', padding: '9px 12px', border: '1px solid #EDE0DB', borderRadius: 9, fontSize: 13, outline: 'none', fontFamily: 'inherit', color: '#1A0A06', marginBottom: 12 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleCrear} style={{ flex: 1, background: WINE, color: '#fff', border: 'none', borderRadius: 9, padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Confirmar</button>
-            <button onClick={() => { setMostrarFormulario(false); setNombreCategoria('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => { setMostrarFormulario(false); setNombreCategoria(''); setImagenUrl('') }} style={{ flex: 1, background: 'none', color: '#5C3A2E', border: '1px solid #EDE0DB', borderRadius: 9, padding: '9px', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
       )}
@@ -77,11 +85,17 @@ export default function Gastos() {
       {/* Grid categorías */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
         {categorias.map(c => (
-          <div key={c.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06' }}>{c.nombre}</div>
+          <div key={c.id} style={{ background: '#fff', border: '1px solid #EDE0DB', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              {c.imagen_url
+                ? <img src={c.imagen_url} alt="" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 48, height: 48, borderRadius: 10, background: '#FEF2EE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💸</div>
+              }
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#1A0A06', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nombre}</div>
+            </div>
             <button
               onClick={() => navigate(`/gastos/${c.id}`)}
-              style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: WINE_LIGHT, color: WINE, border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
             >
               Ver →
             </button>

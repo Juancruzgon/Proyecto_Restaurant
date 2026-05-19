@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from backend.core.database import get_session
+from core.database import get_session
 from models.usuario import Usuario
 from models.caja import Caja
 from models.pedido import Pedido
-from backend.core.auth import get_current_user
+from core.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter(

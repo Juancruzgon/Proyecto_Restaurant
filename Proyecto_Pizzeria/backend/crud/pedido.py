@@ -93,6 +93,14 @@ def crear_pedido(pedido: schemas.PedidoCreate, session: Session):
     # 2. Crear pedido
     nuevo_pedido = Pedido(**pedido.model_dump(), estado_id=2, nro_pedido=nro_pedido)
 
+    # 2b. Calcular cubiertos si se indica cantidad de personas
+    if pedido.cantidad_personas:
+        from models.configuracion import Configuracion
+        config = session.get(Configuracion, 1)
+        precio_cub = float(config.precio_cubierto) if config else 0
+        nuevo_pedido.total_cubiertos = pedido.cantidad_personas * precio_cub
+        nuevo_pedido.total += nuevo_pedido.total_cubiertos
+
     # 3. Asignar caja activa si existe
     caja_activa = session.exec(select(Caja).where(Caja.activo == True)).first()
     if caja_activa:
