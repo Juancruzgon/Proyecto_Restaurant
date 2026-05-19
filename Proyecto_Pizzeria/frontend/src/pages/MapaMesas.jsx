@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { getMesas, getSalones, eliminarMesa, getCajaActiva } from '../services/api'
+import api, { getMesas, getSalones, eliminarMesa, getCajaActiva, getPedidosPorMesa } from '../services/api'
+import ModalPedido from '../components/ModalPedido'
 
 const WINE       = '#7C2D12'
 const WINE_LIGHT = '#FEF2EE'
@@ -37,6 +38,7 @@ export default function MapaMesas() {
   const [modoEdicion, setModoEdicion] = useState(false)
   const [mesaHover,   setMesaHover]   = useState(null)
   const [caja,        setCaja]        = useState(null)
+  const [modalPedido, setModalPedido] = useState(null)
 
   // Tamaño del canvas (salón)
   const [canvasW, setCanvasW] = useState(1200)
@@ -202,10 +204,16 @@ export default function MapaMesas() {
     }
   }
 
-  const handleClickMesa = (mesa) => {
+  const handleClickMesa = async (mesa) => {
     if (modoEdicion) return
     if (!caja?.id) { alert('No hay caja abierta. Pedí al admin que abra la caja para comenzar a operar.'); return }
     if (modoNuevo && mesa.estado_id !== 1) { alert('Mesa ocupada — elegí otra'); return }
+    if (mesa.estado_id !== 1) {
+      const pedidos = await getPedidosPorMesa(mesa.id)
+      const activo  = pedidos.find(p => p.estado_id !== 4) ?? pedidos[0]
+      if (activo) setModalPedido(activo)
+      return
+    }
     navigate(`/pedido/${mesa.id}?tipo=Salon`)
   }
 
@@ -399,6 +407,14 @@ export default function MapaMesas() {
           </div>
         )}
       </div>
+
+      {modalPedido && (
+        <ModalPedido
+          pedido={modalPedido}
+          onClose={() => setModalPedido(null)}
+          onRefresh={() => cargarMesas(salonActivo)}
+        />
+      )}
 
       {/* Leyenda */}
       <div style={{ display: 'flex', gap: 20, marginTop: 20 }}>

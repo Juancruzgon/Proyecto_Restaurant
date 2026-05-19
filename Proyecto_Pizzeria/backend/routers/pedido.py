@@ -23,7 +23,7 @@ from models.pedido import Pedido
 from models.configuracion import Configuracion
 from core.auth import get_current_user
 from core.websocket_manager import manager
-from services.printer_service import imprimir_comanda, imprimir_ticket
+from integrations.printer import imprimir_comanda, imprimir_ticket
 import json
 import threading
 
